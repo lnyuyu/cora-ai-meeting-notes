@@ -510,7 +510,8 @@ def _process_recording_local_inner(folder: Path, audio_file: Path, profile: dict
         "usage": {"resource": resource_entry,
                   "window_fallbacks": len(metadata["transcription_engines"]["windows"]),
                   "transcriber_model": asr.model,
-                  "validation": asr.validation},
+                  "validation": asr.validation,
+                  "template": (notes.get("processing") or {}).get("template")},
     }
 
 

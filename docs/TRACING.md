@@ -68,7 +68,7 @@ Keys may be missing; extra keys may not.
 | `recording_started` | `recording_id`, `meeting_app`, `surface`, `microphone_kind`, `started_from` (new_note, tray, call_prompt, continue, other) | Recording session |
 | `recording_stopped` | `recording_id`, `meeting_app`, `surface`, `duration_s`, `chunks`, `pauses`, `mic_reconnects`, `ended_by` | Recording session |
 | `participants_captured` | `recording_id`, `count`, `method`, `warnings`, `linked_people` | Recording session |
-| `processing_finished` | `recording_id`, `status` (`ok`\|`error`), `error_code`, `transcriber_provider`, `transcriber_model`, `text_provider`, `text_model`, `transcription_s`, `summarization_s`, `total_s`, `tokens_in`, `tokens_out`, `window_fallbacks`, `speech_s`, `silence_s`, `retries`, `peak_rss_mb`, `duration_s`, and per cloud transcript check how often it rejected an attempt: `asr_malformed`, `asr_timestamps`, `asr_outside_window`, `asr_runaway`, `asr_empty`, `asr_collapsed`, `asr_coverage`, `asr_other`, plus `asr_clamped` (turns ending a few seconds past their Window, clamped instead of rejected); all `asr_*` null for local transcription or a run that failed | `python/usage_emitters.py`, once per processing run; also where Captured Recording sampling happens |
+| `processing_finished` | `recording_id`, `status` (`ok`\|`error`), `error_code`, `transcriber_provider`, `transcriber_model`, `text_provider`, `text_model`, `transcription_s`, `summarization_s`, `total_s`, `tokens_in`, `tokens_out`, `window_fallbacks`, `speech_s`, `silence_s`, `retries`, `peak_rss_mb`, `duration_s`, `asr_tokens_in`, `asr_tokens_out` (transcription spans; null for local Whisper), `template` (the notes template used), and per cloud transcript check how often it rejected an attempt: `asr_malformed`, `asr_timestamps`, `asr_outside_window`, `asr_runaway`, `asr_empty`, `asr_collapsed`, `asr_coverage`, `asr_other`, plus `asr_clamped` (turns ending a few seconds past their Window, clamped instead of rejected); all `asr_*` null for local transcription or a run that failed | `python/usage_emitters.py`, once per processing run; also where Captured Recording sampling happens |
 | `notes_viewed` | `recording_id` | notes view |
 | `notes_edited` | `recording_id`, `edit_ratio` (0..1) | notes view |
 | `transcript_corrected` | `recording_id`, `corrections` | transcript editor |
@@ -93,6 +93,8 @@ Keys may be missing; extra keys may not.
 | `tour_closed` | `slide` (1-based, where it was closed), `slides` (how many), `outcome` (`done`, `skip`) | renderer (`js/tour.js`) |
 | `ui_activity` | `day` (local `YYYY-MM-DD`), `active_min`, `doing` (Effort), `browsing` | `python/activity.py`, once per Install per local day, after the day ends (below) |
 | `ui_action_count` | `day`, `action` (an id from `activity.ACTIONS`), `kind` (`doing`\|`browsing`), `count` | `python/activity.py`, with that day's `ui_activity`: one per action used that day |
+| `search_used` | `where` (`meetings`: the sidebar search, once per Enter or leaving the box with text; `transcript`: the search bar in a meeting, once per opening) | renderer; never the query |
+| `speaker_linked` | `source` (`participants`: an existing Person chosen; `participants_new_person`: a new Person created and linked) | Participants tab |
 
 ### Effort and Active time (`python/activity.py`)
 

@@ -30,7 +30,7 @@ CATALOG: dict[str, frozenset[str]] = {name: frozenset(keys.split()) for name, ke
                            " text_model transcription_s summarization_s total_s tokens_in tokens_out"
                            " window_fallbacks speech_s silence_s retries peak_rss_mb duration_s"
                            " asr_malformed asr_timestamps asr_outside_window asr_runaway asr_empty"
-                           " asr_collapsed asr_coverage asr_other asr_clamped",
+                           " asr_collapsed asr_coverage asr_other asr_clamped asr_tokens_in asr_tokens_out template",
     "notes_viewed": "recording_id",
     "notes_edited": "recording_id edit_ratio",
     "transcript_corrected": "recording_id corrections",
@@ -55,6 +55,8 @@ CATALOG: dict[str, frozenset[str]] = {name: frozenset(keys.split()) for name, ke
     "tour_closed": "slide slides outcome",
     "ui_activity": "day active_min doing browsing",
     "ui_action_count": "day action kind count",
+    "search_used": "where",
+    "speaker_linked": "source",
 }.items()}
 
 

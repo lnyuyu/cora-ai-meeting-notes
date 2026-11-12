@@ -66,6 +66,8 @@ def test_a_finished_run_records_one_processing_finished_from_the_run_and_resourc
     assert event["summarization_s"] >= 0
     assert event["peak_rss_mb"] > 0
     assert event["tokens_in"] is None or event["tokens_in"] >= 0
+    assert event["asr_tokens_in"] is None or event["asr_tokens_in"] >= 0
+    assert event["template"] == "general"
 
 
 def test_a_failed_run_records_one_processing_finished_with_the_error_code(

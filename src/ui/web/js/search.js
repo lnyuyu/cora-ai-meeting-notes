@@ -36,6 +36,7 @@ function setupTranscriptSearch() {
   }
 
   function openSearch() {
+    searchTracked = false;  // one search_used per opening of the bar
     bar.style.display = 'flex';
     input.focus();
     input.select();
@@ -132,9 +133,12 @@ function setupTranscriptSearch() {
     }
   });
 
+  let searchTracked = false;
   input.addEventListener('input', () => {
     trackActionSettled('search', input.value);
-    performSearch(input.value.trim());
+    const query = input.value.trim();
+    performSearch(query);
+    if (query && !searchTracked) { searchTracked = true; track('search_used', { where: 'transcript' }); }
   });
 
   input.addEventListener('keydown', (e) => {

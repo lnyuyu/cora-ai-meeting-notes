@@ -156,6 +156,7 @@ $('#notepadParticipants')?.addEventListener('change', async (e) => {
       track('person_added', { source: 'participants_tab' });  // also counts add_person
       trackAction('link_person');
       await api('/api/recording/participant', { method: 'POST', body: JSON.stringify({ id: record.id, raw_name: rawName, action: 'map', person_id: created.person.id }) });
+      track('speaker_linked', { source: 'participants_new_person' });
       const entry = (selectedDetail?.participants || []).find(p => p.raw_name === rawName);
       if(entry) entry.person_id = created.person.id;
       toast(`Added ${name} to People and linked.`);
@@ -166,6 +167,7 @@ $('#notepadParticipants')?.addEventListener('change', async (e) => {
   try{
     trackAction('link_person');
     await api('/api/recording/participant', { method: 'POST', body: JSON.stringify({ id: record.id, raw_name: rawName, action: 'map', person_id: select.value || null }) });
+    if(select.value) track('speaker_linked', { source: 'participants' });
     toast('Linked.');
   }catch(error){ toast(error.message, true); }
 });

@@ -50,6 +50,8 @@ addEventListener('click', async event=>{
 $('#backToRecordings')?.addEventListener('click', () => { trackAction('switch_view'); showView('recordings'); });
 $('#backToPeople')?.addEventListener('click', () => { trackAction('switch_view'); showView('people'); });
 $('#sessionSearch').addEventListener('input', e => { trackActionSettled('search', e?.target?.value); renderSessions(); });
+// One search_used per search: fires on Enter or when the box loses focus with text in it.
+$('#sessionSearch').addEventListener('change',e=>{ if(e.target.value.trim()) track('search_used',{ where:'meetings' }); });
 const filterChanged = () => { trackAction('filter'); renderSessions(); };
 $('#stageFilter').addEventListener('change',filterChanged);
 $('#meetingTypeFilter')?.addEventListener('change',filterChanged);

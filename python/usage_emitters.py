@@ -31,14 +31,15 @@ def processing_finished(recording_id: str, profile: dict[str, Any], *, run_id: O
                         started: float, resource: Optional[dict[str, Any]] = None,
                         window_fallbacks: Optional[int] = None, error_code: Optional[str] = None,
                         transcriber_model: Optional[str] = None,
-                        validation: Optional[dict[str, int]] = None) -> None:
+                        validation: Optional[dict[str, int]] = None, template: Optional[str] = None) -> None:
     """Record one processing_finished for a run that just ended.
 
     Providers are the Processing profile's choices (the preset names the
     report's local/cloud split groups by); models are the first traced
     transcription / llm span's, else `transcriber_model` (the run's own
     Transcriber, passed by the runner) / the profile's. tokens_in/out sum the
-    run's llm spans; retries counts its failed spans (calls retried or
+    run's llm spans and asr_tokens_in/out its transcription spans (None when the
+    engine reports none, e.g. local Whisper); template is the notes template used; retries counts its failed spans (calls retried or
     replaced by a fallback). Timings, speech/silence, peak RSS and audio
     duration come from the resource-usage entry (absent on a failed run,
     where peak RSS falls back to the run row's). validation: how often each
@@ -66,6 +67,9 @@ def processing_finished(recording_id: str, profile: dict[str, Any], *, run_id: O
             "total_s": run.get("duration_s") if run.get("duration_s") is not None else round(time.time() - started, 1),
             "tokens_in": _sum(s["input_tokens"] for s in llm),
             "tokens_out": _sum(s["output_tokens"] for s in llm),
+            "asr_tokens_in": _sum(s["input_tokens"] for s in asr),
+            "asr_tokens_out": _sum(s["output_tokens"] for s in asr),
+            "template": template,
             "window_fallbacks": window_fallbacks,
             "speech_s": resource.get("speech_duration_seconds"),
             "silence_s": resource.get("silence_removed_seconds"),
