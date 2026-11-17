@@ -16,6 +16,7 @@ const { createDetectHint } = require('./main/detect-hint');
 const { createCaptureHelperFactory, listAudioDevices, startMicWatch } = require('./recording/capture-helper');
 const { createRecordingSession } = require('./recording/session');
 const { createProcessingQueue, shouldDeferProcessing } = require('./recording/processing-queue');
+const { createResourceSampler } = require('./main/app-resources');
 const { createBackendApi, createArchiveStep } = require('./recording/backend');
 const { buildInfoEnv } = require('./build-info');
 const os = require('os');
@@ -27,7 +28,7 @@ const { createMenuBar } = require('./main/menu-bar');
 const mainLog = createMainLog({ logsDir: LOGS_DIR });
 mainLog.prune();
 mainLog.attach(console);
-const { appStartedPayload, lockdownEnabled, screenshotTakenPayload } = require('./main/usage');
+const { appStartedPayload, lockdownEnabled, permissionSnapshot, screenshotTakenPayload } = require('./main/usage');
 const { createUpdater } = require('./updater');
 const { createInstaller, bundlePathFromExe } = require('./main/update-install');
 
@@ -125,7 +126,17 @@ const recording = createRecordingSession({
     devices: () => knownMicDevices,
   },
   // Read at stop: a Call with no names while this is false gets a notice.
-  permissions: { accessibilityTrusted: () => systemPreferences.isTrustedAccessibilityClient(false) },
+  // snapshot: perm_* on recording_started.
+  permissions: {
+    accessibilityTrusted: () => systemPreferences.isTrustedAccessibilityClient(false),
+    snapshot: () => permissionSnapshot(permissionStatus()),
+  },
+  // The app's own CPU and memory while recording, onto recording_stopped.
+  resources: createResourceSampler({
+    getAppMetrics: () => app.getAppMetrics(),
+    mainPid: process.pid,
+    pythonPid: () => (pythonProcess && pythonProcess.pid) || null,
+  }),
 });
 
 const isCapturing = () => recording.state().phase === 'recording';
@@ -154,6 +165,7 @@ async function recordAppStarted() {
     recommendedMode,
     microphone: await fetchSetting('microphone'),
     lockdown: lockdownEnabled({ env: process.env, configText }),
+    permissions: permissionSnapshot(permissionStatus()),
   }));
 }
 
@@ -538,13 +550,16 @@ handleTrusted('update-now', () => updater.update());
 
 handleTrusted('update-later', () => updater.snooze());
 
-handleTrusted('get-permission-status', () => ({
-  microphone: systemPreferences.getMediaAccessStatus('microphone'),
-  screen: systemPreferences.getMediaAccessStatus('screen'),
-  // Electron has no getMediaAccessStatus-style enum for Accessibility; the
-  // trusted-client check is the closest equivalent (true/false, not a status enum).
-  accessibility: systemPreferences.isTrustedAccessibilityClient(false) ? 'granted' : 'not-determined',
-}));
+function permissionStatus() {
+  return {
+    microphone: systemPreferences.getMediaAccessStatus('microphone'),
+    screen: systemPreferences.getMediaAccessStatus('screen'),
+    // Electron has no getMediaAccessStatus-style enum for Accessibility; the
+    // trusted-client check is the closest equivalent (true/false, not a status enum).
+    accessibility: systemPreferences.isTrustedAccessibilityClient(false) ? 'granted' : 'not-determined',
+  };
+}
+handleTrusted('get-permission-status', () => permissionStatus());
 
 handleTrusted('request-microphone-access', () => systemPreferences.askForMediaAccess('microphone'));
 

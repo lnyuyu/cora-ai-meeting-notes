@@ -22,9 +22,12 @@ QUEUE_MAX_AGE_DAYS = 7
 QUEUE_MAX_BYTES = 5_000_000
 
 CATALOG: dict[str, frozenset[str]] = {name: frozenset(keys.split()) for name, keys in {
-    "app_started": "macos chip ram_gb processing_mode recommended_mode microphone_kind lockdown",
-    "recording_started": "recording_id meeting_app surface microphone_kind started_from",
-    "recording_stopped": "recording_id meeting_app surface duration_s chunks pauses mic_reconnects ended_by",
+    "app_started": "macos chip ram_gb processing_mode recommended_mode microphone_kind lockdown"
+                   " perm_mic perm_screen perm_accessibility perm_automation",
+    "recording_started": "recording_id meeting_app surface microphone_kind started_from"
+                         " perm_mic perm_screen perm_accessibility perm_automation",
+    "recording_stopped": "recording_id meeting_app surface duration_s chunks pauses mic_reconnects ended_by"
+                         " app_cpu_avg app_cpu_max app_rss_max_mb helpers_cpu_avg helpers_rss_max_mb python_rss_max_mb",
     "participants_captured": "recording_id count method warnings linked_people",
     "processing_finished": "recording_id status error_code transcriber_provider transcriber_model text_provider"
                            " text_model transcription_s summarization_s total_s tokens_in tokens_out"

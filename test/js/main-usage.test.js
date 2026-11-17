@@ -42,3 +42,15 @@ test('the backend adapter posts a Usage event as {name, payload} to /api/events'
   await api.recordEvent('error', { scope: 'capture', code: 'helper_exit_1' });
   assert.deepEqual(posted, [['/api/events', { name: 'error', payload: { scope: 'capture', code: 'helper_exit_1' } }]]);
 });
+
+test('the permission snapshot is granted, denied or unknown for mic, screen, Accessibility and automation', () => {
+  const { permissionSnapshot } = require('../../src/main/usage');
+  assert.deepEqual(permissionSnapshot({ microphone: 'granted', screen: 'denied', accessibility: 'not-determined' }),
+    { perm_mic: 'granted', perm_screen: 'denied', perm_accessibility: 'denied', perm_automation: 'unknown' });
+  assert.deepEqual(permissionSnapshot({ microphone: 'restricted', screen: 'not-determined', accessibility: 'granted' }, 'granted'),
+    { perm_mic: 'denied', perm_screen: 'unknown', perm_accessibility: 'granted', perm_automation: 'granted' });
+  assert.deepEqual(permissionSnapshot(), { perm_mic: 'unknown', perm_screen: 'unknown', perm_accessibility: 'unknown', perm_automation: 'unknown' });
+  const payload = appStartedPayload({ os: fakeOs, systemVersion: '15.1', processingMode: null, microphone: null, lockdown: false,
+    permissions: permissionSnapshot({ microphone: 'granted', screen: 'granted', accessibility: 'granted' }) });
+  assert.equal(payload.perm_accessibility, 'granted');
+});

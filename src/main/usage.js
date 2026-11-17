@@ -11,8 +11,24 @@ function microphoneKind(setting) {
 // os: node's os module (or a stand-in); systemVersion: Electron's
 // process.getSystemVersion() (the macOS version), falling back to the
 // Darwin release.
+// get-permission-status ({ microphone, screen, accessibility }) -> perm_*
+// keys, each granted | denied | unknown. Accessibility is a trusted/untrusted
+// check, so anything but granted is denied. Automation (Apple Events to the
+// browsers) has no status API that does not prompt: unknown unless main has
+// seen the answer (automation: 'granted' | 'denied').
+function permissionSnapshot(status = {}, automation = null) {
+  const tri = (v) => (v === 'granted' ? 'granted' : v === 'denied' || v === 'restricted' ? 'denied' : 'unknown');
+  return {
+    perm_mic: tri(status.microphone),
+    perm_screen: tri(status.screen),
+    perm_accessibility: status.accessibility === undefined ? 'unknown' : (status.accessibility === 'granted' ? 'granted' : 'denied'),
+    perm_automation: tri(automation),
+  };
+}
+
 // recommendedMode: python/processing.py recommend() for this Mac (GET /api/processing).
-function appStartedPayload({ os, systemVersion, processingMode, recommendedMode = null, microphone, lockdown }) {
+// permissions: permissionSnapshot(...) (perm_* keys), or omitted.
+function appStartedPayload({ os, systemVersion, processingMode, recommendedMode = null, microphone, lockdown, permissions = {} }) {
   const cpus = os.cpus() || [];
   return {
     macos: systemVersion || os.release(),
@@ -22,6 +38,7 @@ function appStartedPayload({ os, systemVersion, processingMode, recommendedMode 
     recommended_mode: recommendedMode || null,
     microphone_kind: microphoneKind(microphone),
     lockdown: Boolean(lockdown),
+    ...permissions,
   };
 }
 
@@ -45,4 +62,4 @@ function screenshotTakenPayload(recordingId, files, ocrText) {
   };
 }
 
-module.exports = { appStartedPayload, lockdownEnabled, microphoneKind, screenshotTakenPayload };
+module.exports = { permissionSnapshot, appStartedPayload, lockdownEnabled, microphoneKind, screenshotTakenPayload };

@@ -220,3 +220,37 @@ test('no capture notice when Accessibility is granted, names were captured, or t
     assert.deepEqual(api.named('setCaptureNotice'), [], `meeting=${meeting} roster=${roster.length}`);
   }
 });
+
+test('recording_started carries the permission snapshot; recording_stopped the app\'s own costs', async () => {
+  const costs = { app_cpu_avg: 12.5, app_cpu_max: 40, app_rss_max_mb: 600, helpers_cpu_avg: 9, helpers_rss_max_mb: 80, python_rss_max_mb: 300 };
+  const calls = [];
+  const resources = { start: () => calls.push('start'), stop: () => { calls.push('stop'); return costs; } };
+  const perms = { perm_mic: 'granted', perm_screen: 'granted', perm_accessibility: 'denied', perm_automation: 'unknown' };
+  const { session, api } = setup({ resources, permissions: { snapshot: async () => perms } });
+  const { id } = session.start({ meeting: 'Zoom' });
+  await flush();
+  session.pause();
+  await session.resume();
+  await session.stop('user');
+  await flush();
+  assert.deepEqual(calls, ['start', 'stop'], 'one sampling span per Recording, pauses included');
+  const [started] = api.events('recording_started');
+  assert.deepEqual({ ...started }, { recording_id: id, meeting_app: 'zoom', surface: 'native', microphone_kind: 'default',
+    started_from: 'other', ...perms });
+  const [stopped] = api.events('recording_stopped');
+  for (const [k, v] of Object.entries(costs)) assert.equal(stopped[k], v);
+});
+
+test('a failing permission snapshot or sampler never stops a Recording', async () => {
+  const resources = { start: () => { throw new Error('no ps'); }, stop: () => { throw new Error('no ps'); } };
+  const { session, api } = setup({ resources, permissions: { snapshot: async () => { throw new Error('ipc'); } } });
+  const warn = console.warn; console.warn = () => {};
+  try {
+    const { ok } = session.start({});
+    assert.equal(ok, true);
+    await session.stop('user');
+    await flush();
+  } finally { console.warn = warn; }
+  assert.equal(api.events('recording_started').length, 1);
+  assert.equal(api.events('recording_stopped').length, 1);
+});

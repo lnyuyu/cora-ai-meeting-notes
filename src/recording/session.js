@@ -119,7 +119,7 @@ function deferredHelper(startHelper, optsPromise) {
 // Where a Recording was started from, as recording_started reports it.
 const STARTED_FROM = new Set(['new_note', 'tray', 'call_prompt', 'continue']);
 
-function createRecordingSession({ startHelper, api, clock, queue, people = {}, microphone = null, newRecordingId = recordingIdAt, permissions = {} }) {
+function createRecordingSession({ startHelper, api, clock, queue, people = {}, microphone = null, newRecordingId = recordingIdAt, permissions = {}, resources = null }) {
   const events = new EventEmitter();
   const selfName = people.selfName || (() => null);
   const labelSpeaker = people.labelSpeaker || ((name) => name);
@@ -302,9 +302,17 @@ function createRecordingSession({ startHelper, api, clock, queue, people = {}, m
       pauses: 0, micReconnects: 0, micKind: 'default',
       startedFrom: STARTED_FROM.has(startedFrom) ? startedFrom : 'other' };
     const u = usage;
-    Promise.resolve(micPending).then((m) => {
+    if (resources) {
+      try { resources.start(); } catch (err) { console.warn('[Cora usage] resource sampling not started:', err && err.message); }
+    }
+    // perm_*: the permission snapshot at start (permissions.snapshot, main's
+    // get-permission-status), or nothing if it cannot be read.
+    const perms = Promise.resolve()
+      .then(() => (permissions.snapshot ? permissions.snapshot() : {}))
+      .catch(() => ({}));
+    Promise.all([micPending, perms]).then(([m, p]) => {
       u.micKind = m && (m.deviceId || m.chosenName) ? 'named' : 'default';
-      track('recording_started', { recording_id: id, ...classifyMeeting({ meeting: tool }), microphone_kind: u.micKind, started_from: u.startedFrom });
+      track('recording_started', { recording_id: id, ...classifyMeeting({ meeting: tool }), microphone_kind: u.micKind, started_from: u.startedFrom, ...(p || {}) });
     });
     emit();
     return { ok: true, id };
@@ -398,8 +406,13 @@ function createRecordingSession({ startHelper, api, clock, queue, people = {}, m
     phase = 'idle';
     const u = usage;
     usage = null;
+    let costs = {};
+    if (resources) {
+      try { costs = resources.stop() || {}; } catch (err) { console.warn('[Cora usage] resource sampling not stopped:', err && err.message); }
+    }
     if (u) {
-      // duration_s is wall-clock from start to stop, pauses included.
+      // duration_s is wall-clock from start to stop, pauses included;
+      // app_*/helpers_*/python_* are the app's own costs (main/app-resources.js).
       track('recording_stopped', {
         recording_id: u.id,
         ...classifyMeeting({ meeting: u.meeting, apps: [...u.apps], titles: [...u.titles] }),
@@ -408,6 +421,7 @@ function createRecordingSession({ startHelper, api, clock, queue, people = {}, m
         pauses: u.pauses,
         mic_reconnects: u.micReconnects,
         ended_by: endedBy(reason),
+        ...costs,
       });
     }
 
