@@ -56,9 +56,19 @@ Tests: the rule's table (8/16/18/24/64 GB, arm64 vs Intel); onboarding preselect
 
 **Observed.** A teammate on an M2 Pro with 8 GB RAM / 256 GB disk, Processing mode Cloud (Gemini, not local): processing reaches about 40%, the whole Mac starts lagging, then Cora and the browser both crash. Repeatedly, on 0.4.3. His Install does not appear in the receiver's events (no M2 Pro 8 GB `app_started`), so either usage sharing is off or the crash happens before upload; we have no logs yet.
 
-**Cause (not yet confirmed).** 15 to 40% is the transcription step (`runner.py` writes 15 + 25 x part progress), so the pressure is in the cloud ASR path, not notes. Candidates to check with his logs: `find_speech_segments` decoding the whole recording into memory, FLAC clip extraction for `WORKERS = 3` windows at once, the context/screenshot block per window, and the local Whisper fallback (`transcriber.local_fallback`; only loads if a local model was downloaded). Electron, the Python server and a browser in a call already use most of 8 GB.
+**Cause (measured 2026-11-13, 0.4.4 bundled Python, one 10-minute dual-track Recording, sandbox data dir).** Peak memory of the pipeline process:
 
-**Fix.** (1) Get his logs (Settings > Send logs) and the processing log for one failed run; measure peak RSS of the Python server on a 60-minute recording. (2) On under 16 GB: 1 ASR worker, stream audio instead of decoding it whole, never load the local fallback. (3) Process after the call ends and pause while another call is live. (4) Folds into the "recommend by this Mac" entry above: Cloud alone is not enough on 8 GB until (2) lands.
+| Mode | Peak | Where | Why |
+|---|---|---|---|
+| Cloud | ~0.2 GB | transcribing | expected: ffmpeg streams audio, FLAC clips go to Gemini |
+| Cloud, with fallback | **1.9 GB** | transcribing | Gemini's output for one stretch failed validation at every split level, so `windowed` handed it to `transcriber.local_fallback`, which loads local MLX Whisper ("transcribing it on this Mac") |
+| Local · Light | **4.5 GB** | romanizing / generating_notes | Whisper (~1.9 GB), then Qwen3-4B for romanization and notes |
+
+Speech detection and clip extraction are cheap (ffmpeg streams), contrary to the first guess. On an 8 GB Mac running a browser and a call, either the Cloud fallback or any Local mode pushes the Mac into swap; the freeze at "~40%" matches the transcribe/romanize boundary. The fallback only loads when a local Whisper model is downloaded, which onboarding step 5 invites.
+
+The rejections themselves are suspect: they were for turns ending 2 to 40 s past the window (`turn ends at 304.4s outside a 302s window`), coverage under 60%, and a runaway-output check, i.e. `asr_validate` is strict enough that one Gemini timing slip escalates to splits, 3x retries per level, and finally the local model.
+
+**Fix.** (1) Under 16 GB, never load the local fallback in Cloud mode: mark the stretch as a gap and offer "retry in the cloud" on the Recording instead. (2) Loosen `asr_validate`: clamp turns that overshoot the window end by a few seconds instead of rejecting, and count how often each rule fires (telemetry) before tuning further. (3) Local modes blocked or warned on under 16 GB per the "recommend by this Mac" entry above. (4) Never process while a call is live on under 16 GB; queue until it ends. (5) Still get his logs (Settings > Send logs) to confirm which of the two paths his Mac took.
 
 ### Seen alongside (not bugs, worth knowing)
 
