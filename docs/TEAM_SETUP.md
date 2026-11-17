@@ -1,7 +1,8 @@
 # Cora for the Sutra team: setup in 10 minutes
 
-Team builds use **Gemini** for transcription and notes, so any Apple Silicon Mac works and nothing
-large downloads to your laptop.
+Cora suggests where to process your meetings based on your Mac: on the Mac itself (**Local**, the
+preferred choice: nothing leaves your laptop, no key needed) when it has the memory for it, or with
+**Gemini** in the cloud (**Cloud**) when it does not.
 
 ![What Cora does: picks up Meet, Zoom and Slack calls, names who said what, handles Hinglish, reads slides you snap, remembers your people and projects, gives action items, and exports to Markdown](images/cora-overview.png)
 
@@ -9,7 +10,10 @@ large downloads to your laptop.
 
 - A Mac with Apple Silicon (M1 or later) on macOS 14 Sonoma or newer.
   Check: Apple menu › About This Mac shows "Chip: Apple M…". Intel Macs are not supported.
-- The team's Gemini API key, shared with you through the password manager (never Slack or email).
+- Memory: 16 GB or more is recommended. On an 8 GB Mac use **Cloud** (Cora recommends it there);
+  Local processing may be slow or fail on long calls. Check: Apple menu › About This Mac › Memory.
+- For Cloud only: the team's Gemini API key, shared with you through the password manager (never
+  Slack or email).
 
 ## 1. Install (2 min)
 
@@ -53,13 +57,14 @@ are not detected, and Meet may prompt while you are still in the green room. Cor
 per app start with a notification: "Cora can't see inside *Brave*. Turn on View › Developer ›
 Allow JavaScript from Apple Events…". That notification means this step is missing for that browser.
 
-## 4. Finish onboarding and add the Gemini key (2 min)
+## 4. Finish onboarding (2 min)
 
 1. Enter your name (this is how Cora labels *you* in transcripts), meeting types and, optionally, key people.
-2. On **Models & privacy**, leave **Processing mode** on **Cloud · cloud audio + notes** (ignore the
-   local model lists). Click **Finish setup**.
-3. A credentials window opens. Choose the **Google AI Studio** tab, paste the Gemini key, click
-   **Test Connection**, then **Save Settings**. The key is stored in your macOS Keychain.
+2. On **Processing & privacy**, keep the card marked **Best for this Mac** unless you have a reason
+   not to: **Local · Thorough** on 24 GB or more, **Local · Light** on 16 to 23 GB, **Cloud** under
+   16 GB. A yellow banner says so on an 8 GB Mac. Click **Finish setup**.
+3. Cloud only: click **Add Gemini key**, choose the **Google AI Studio** tab, paste the Gemini key,
+   click **Test Connection**, then **Save Settings**. The key is stored in your macOS Keychain.
 
 ## 5. Record your first meeting
 
@@ -69,7 +74,8 @@ Allow JavaScript from Apple Events…". That notification means this step is mis
   you click; you can also start from the menu-bar icon › **Start Recording** at any time. For Meet,
   the prompt comes after you click Join, not in the green room. When you leave the call, the
   recording stops.
-- When the call ends, Cora transcribes with Gemini and writes the summary, decisions and action items.
+- When the call ends, Cora transcribes (on your Mac, or with Gemini for Cloud) and writes the summary,
+  decisions and action items.
   Allow a few minutes for an hour-long call.
 - Open the meeting from **Home**. If names are missing, the meeting page says why (usually step 3).
 

@@ -60,23 +60,43 @@ function renderOnboardingPeopleList(){
   }));
 }
 
+let onboardingRecommendation = null;
+
 function onboardingIsLocalMode(){
   const mode = $('#onboardingProcessing [data-processing="mode"]')?.value;
   return !!mode && mode.startsWith('local');
 }
 
-// Whisper/Qwen lists only apply to local modes; cloud mode needs no model choice.
+// Whisper/Qwen lists only apply to local modes; the Gemini key only to Cloud.
 function syncOnboardingLocalModels(){
-  $('#onboardingLocalModels').hidden = !onboardingIsLocalMode();
+  const local = onboardingIsLocalMode();
+  $('#onboardingLocalModels').hidden = !local;
+  const key = $('#onboardingCloudKey');
+  if(key) key.hidden = local;
+}
+
+// The three mode cards drive the (hidden) mode select of the shared controls.
+function renderOnboardingModeCards(){
+  const select = $('#onboardingProcessing [data-processing="mode"]');
+  $('#onboardingModeCards').innerHTML = processingModeCards(onboardingRecommendation, select?.value);
+  $$('#onboardingModeCards input[name="processingMode"]').forEach(input => input.addEventListener('change', () => chooseOnboardingMode(input.value)));
+}
+
+function chooseOnboardingMode(mode){
+  const host = $('#onboardingProcessing');
+  if(!host?.querySelector('[data-processing="mode"]')) return;
+  if(confirmProcessingMode(mode, onboardingRecommendation)) applyProcessingMode(host, mode);
+  renderOnboardingModeCards();
+  syncOnboardingLocalModels();
 }
 
 async function loadOnboardingModels(){
   try{
-    await loadProcessingControls("#onboardingProcessing");
-    // Finish setup saves these controls; the standalone save button is redundant here.
-    $('#onboardingProcessing [data-save-processing]')?.remove();
-    const modeSelect = $('#onboardingProcessing [data-processing="mode"]');
-    modeSelect?.addEventListener('change', syncOnboardingLocalModels);
+    onboardingRecommendation = await loadProcessingControls('#onboardingProcessing', { embedded: true, preferRecommended: true });
+    $('#onboardingLowRam').innerHTML = lowRamBanner(onboardingRecommendation);
+    const modeField = $('#onboardingProcessing [data-processing="mode"]')?.closest('label');
+    if(modeField) modeField.hidden = true;
+    renderOnboardingModeCards();
     syncOnboardingLocalModels();
     const res = await api('/api/onboarding/models');
     if(!onboardingSelectedWhisperModel) onboardingSelectedWhisperModel = (res.whisper_options || [])[0]?.id;
@@ -200,6 +220,7 @@ $('#modalBtnSave')?.addEventListener('click', () => {
   doSaveCredentials('modal', () => setTimeout(closeCredentialsModal, 700));
 });
 
+$('#onboardingCloudKeyBtn')?.addEventListener('click', () => openCredentialsModal());
 $('#closeCredentialsModal')?.addEventListener('click', closeCredentialsModal);
 $('#credentialsModal')?.addEventListener('click', (e) => {
   if (e.target.id === 'credentialsModal') closeCredentialsModal();

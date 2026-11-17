@@ -64,7 +64,7 @@ Keys may be missing; extra keys may not.
 
 | Event | Keys | Emitted by |
 |---|---|---|
-| `app_started` | `macos`, `chip`, `ram_gb`, `processing_mode`, `microphone_kind` (`default`\|`named`), `lockdown` | Electron main, once per launch |
+| `app_started` | `macos`, `chip`, `ram_gb`, `processing_mode`, `recommended_mode` (what `processing.recommend` suggests for this Mac: `local_light`\|`local_thorough`\|`cloud`), `microphone_kind` (`default`\|`named`), `lockdown` | Electron main, once per launch |
 | `recording_started` | `recording_id`, `meeting_app`, `surface`, `microphone_kind`, `started_from` (new_note, tray, call_prompt, continue, other) | Recording session |
 | `recording_stopped` | `recording_id`, `meeting_app`, `surface`, `duration_s`, `chunks`, `pauses`, `mic_reconnects`, `ended_by` | Recording session |
 | `participants_captured` | `recording_id`, `count`, `method`, `warnings`, `linked_people` | Recording session |

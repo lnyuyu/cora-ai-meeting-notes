@@ -139,13 +139,19 @@ function recordUsage(name, payload) {
 
 async function recordAppStarted() {
   let processingMode = null;
-  try { processingMode = JSON.parse(await fetchJson('/api/processing')).preferences.mode; } catch {}
+  let recommendedMode = null;
+  try {
+    const processing = JSON.parse(await fetchJson('/api/processing'));
+    processingMode = processing.preferences.mode;
+    recommendedMode = (processing.recommendation && processing.recommendation.recommended_mode) || null;
+  } catch {}
   let configText = null;
   try { configText = fs.readFileSync(path.join(DATA_DIR, 'config.json'), 'utf8'); } catch {}
   recordUsage('app_started', appStartedPayload({
     os,
     systemVersion: typeof process.getSystemVersion === 'function' ? process.getSystemVersion() : null,
     processingMode,
+    recommendedMode,
     microphone: await fetchSetting('microphone'),
     lockdown: lockdownEnabled({ env: process.env, configText }),
   }));

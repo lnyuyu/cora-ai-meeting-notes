@@ -183,7 +183,14 @@
 
     <section class="onboarding-step" data-step="models" hidden>
       <span class="kicker">STEP 5 OF 5</span>
-      <h2>Models &amp; privacy</h2>
+      <h2>Processing &amp; privacy</h2>
+      <p class="muted">Where Cora turns your recordings into transcripts and notes. You can change this later in Settings &gt; Processing.</p>
+      <div id="onboardingLowRam"></div>
+      <div id="onboardingModeCards" class="onboarding-checklist mode-cards"></div>
+      <div id="onboardingCloudKey" class="permission-row" hidden>
+        <div><strong>Cloud needs a Google Gemini key</strong><small class="muted">Paste the key you were given (or your own). It is kept in the macOS Keychain.</small></div>
+        <button type="button" class="button secondary small" id="onboardingCloudKeyBtn">Add Gemini key</button>
+      </div>
       <div id="onboardingProcessing" class="processing-controls"></div>
       <div id="onboardingLocalModels" hidden>
         <p class="muted">Models download automatically the first time you process a recording if not already cached — nothing to wait for now.</p>

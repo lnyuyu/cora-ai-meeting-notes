@@ -10,8 +10,9 @@
 # so macOS permission grants survive updates; ad-hoc (with a warning) if it
 # hasn't been set up. Not notarized (no Apple Developer ID) — see docs/INSTALL.md.
 #
-# Options:  --team   new installs default to Gemini for transcription and notes
-#                    (no local models to download; each user pastes the team's key)
+# Options:  --team   new installs default to the Processing mode recommended for
+#                    their Mac (processing.recommend: Local on 16 GB+, Cloud below;
+#                    only Cloud users paste the team's Gemini key)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -80,10 +81,10 @@ APP="dist/mac-arm64/$PRODUCT.app"
 [[ -d "$APP" ]] || { echo "electron-builder did not produce $APP"; exit 1; }
 
 if [[ $TEAM -eq 1 ]]; then
-  say "Team build: new installs default to Gemini"
+  say "Team build: new installs default to the mode recommended for their Mac"
   CFG="$PWD/$APP/Contents/Resources/app.asar.unpacked/config.example.json"
   [[ -f "$CFG" ]] || { echo "missing $CFG (asarUnpack config.example.json?)"; exit 1; }
-  node -e 'const f=process.argv[1],c=require(f);c.default_processing_mode="cloud";require("fs").writeFileSync(f,JSON.stringify(c,null,2)+"\n")' "$CFG"
+  node -e 'const f=process.argv[1],c=require(f);c.default_processing_mode="recommended";require("fs").writeFileSync(f,JSON.stringify(c,null,2)+"\n")' "$CFG"
 fi
 
 say "Stamping build-info.json"

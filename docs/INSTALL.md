@@ -50,9 +50,10 @@ apps use Accessibility only.
 
 ## Team builds
 
-`./scripts/build-app.sh --team` builds the same app with Gemini as the default for transcription and
-notes on new installs (`"default_processing_mode": "cloud"`), so nothing heavy runs or downloads
-locally; each user pastes the Gemini key on first launch. Existing installs keep their `config.json`. Release signing needs a one-time `./scripts/signing-setup.sh` on the build machine;
+`./scripts/build-app.sh --team` builds the same app with the mode recommended for each Mac as the
+default on new installs (`"default_processing_mode": "recommended"`, i.e. `processing.recommend`:
+Local · Thorough at 24 GB+, Local · Light at 16 to 23 GB, Cloud under 16 GB or on Intel); only a
+user who picks Cloud pastes the Gemini key. Existing installs keep their `config.json`. Release signing needs a one-time `./scripts/signing-setup.sh` on the build machine;
 back up `~/.cora-signing` (losing it means everyone re-grants permissions once).
 
 ## Install the DMG by hand

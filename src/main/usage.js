@@ -11,13 +11,15 @@ function microphoneKind(setting) {
 // os: node's os module (or a stand-in); systemVersion: Electron's
 // process.getSystemVersion() (the macOS version), falling back to the
 // Darwin release.
-function appStartedPayload({ os, systemVersion, processingMode, microphone, lockdown }) {
+// recommendedMode: python/processing.py recommend() for this Mac (GET /api/processing).
+function appStartedPayload({ os, systemVersion, processingMode, recommendedMode = null, microphone, lockdown }) {
   const cpus = os.cpus() || [];
   return {
     macos: systemVersion || os.release(),
     chip: (cpus[0] && cpus[0].model) || null,
     ram_gb: Math.round(os.totalmem() / 2 ** 30),
     processing_mode: processingMode || null,
+    recommended_mode: recommendedMode || null,
     microphone_kind: microphoneKind(microphone),
     lockdown: Boolean(lockdown),
   };

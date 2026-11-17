@@ -11,14 +11,15 @@ const fakeOs = {
   release: () => '24.1.0',
 };
 
-test('app_started: macOS version, chip, RAM, processing mode, microphone kind and lockdown', () => {
+test('app_started: macOS version, chip, RAM, processing mode, recommended mode, microphone kind and lockdown', () => {
   assert.deepEqual(appStartedPayload({
-    os: fakeOs, systemVersion: '15.1.0', processingMode: 'local_light',
+    os: fakeOs, systemVersion: '15.1.0', processingMode: 'local_light', recommendedMode: 'local_thorough',
     microphone: { unique_id: 'usb-1', name: 'Shure MV7' }, lockdown: false,
-  }), { macos: '15.1.0', chip: 'Apple M2 Pro', ram_gb: 32, processing_mode: 'local_light', microphone_kind: 'named', lockdown: false });
+  }), { macos: '15.1.0', chip: 'Apple M2 Pro', ram_gb: 32, processing_mode: 'local_light', recommended_mode: 'local_thorough',
+    microphone_kind: 'named', lockdown: false });
 
   assert.deepEqual(appStartedPayload({ os: fakeOs, systemVersion: null, processingMode: null, microphone: null, lockdown: true }),
-    { macos: '24.1.0', chip: 'Apple M2 Pro', ram_gb: 32, processing_mode: null, microphone_kind: 'default', lockdown: true });
+    { macos: '24.1.0', chip: 'Apple M2 Pro', ram_gb: 32, processing_mode: null, recommended_mode: null, microphone_kind: 'default', lockdown: true });
 });
 
 test('lockdown is read the way python/policy.py reads it: env flag, else config.json', () => {

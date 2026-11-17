@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 import fcntl
+import functools
 import os
 import platform
 import subprocess
@@ -29,9 +30,12 @@ def preferences():
     saved = db.get_setting('processing_preferences')
     if isinstance(saved, dict):
         return validate(saved)
-    # A deployment default (config.json, set by `build-app.sh --team`) applies
-    # until the user saves their own profile.
+    # A deployment default (config.json; `build-app.sh --team` sets
+    # "recommended", i.e. processing.recommend for this Mac) applies until the
+    # user saves their own profile.
     default_mode = _config().get('default_processing_mode')
+    if default_mode == 'recommended':  # team builds: whatever suits this Mac
+        default_mode = recommend()['recommended_mode']
     if default_mode in MODES:
         return validate(dict(mode=default_mode))
     # Preserve existing users' ASR choice until they explicitly choose a profile.
@@ -127,20 +131,77 @@ def scope(options, *, wait=False):
             fcntl.flock(lock, fcntl.LOCK_UN)
 
 
+@functools.lru_cache(maxsize=1)
+def _memory_bytes():
+    if platform.system() != 'Darwin':
+        return 0
+    try:
+        return int(subprocess.check_output(['sysctl', '-n', 'hw.memsize'], text=True).strip())
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return 0
+
+
 def hardware():
-    memory = 0
-    if platform.system() == 'Darwin':
-        try:
-            memory = int(subprocess.check_output(['sysctl', '-n', 'hw.memsize'], text=True).strip())
-        except (OSError, ValueError, subprocess.SubprocessError):
-            pass
-    gb = round(memory / 1024**3, 1)
-    capable = gb >= 24 and platform.machine() == 'arm64'
-    return dict(memory_gb=gb, cpu_count=os.cpu_count(), architecture=platform.machine(),
-                recommended_mode='local_thorough' if capable else 'local_light',
-                explanation=('Thorough is a reasonable starting point on this Mac.' if capable else
-                             'Start with Light; Thorough may be slow or memory constrained.' ) +
-                ' Hardware estimate only, not a benchmark. Thorough uses your selected local model; larger models need more memory.')
+    gb = round(_memory_bytes() / 1024**3, 1)
+    out = dict(memory_gb=gb, cpu_count=os.cpu_count(), architecture=platform.machine())
+    rec = recommend(out)
+    return dict(out, recommended_mode=rec['recommended_mode'],
+                explanation=rec['modes'][rec['recommended_mode']]['reason'])
+
+
+LOW_RAM_GB = 16      # under this, local transcription competes with the call for memory
+THOROUGH_GB = 24     # the larger local model fits comfortably from here
+_ORDER = ('local_thorough', 'local_light', 'cloud')  # preference among equally good modes
+
+
+def recommend(hw=None, *, lockdown=None):
+    """The one rule for which Processing mode suits this Mac. Local is
+    preferred whenever the Mac can run it well; Cloud is recommended only
+    when it cannot. Returns {recommended_mode, memory_gb, low_ram, warning,
+    modes: {mode: {level, reason}}}, level one of recommended | ok | warn |
+    blocked. Onboarding, Settings, the team build default and the
+    app_started Usage event all read this; nothing else decides.
+
+    Measured 2026-11-13 (docs/TODO.md history): Local · Light peaks at about
+    4.5 GB (Whisper, then Qwen3-4B), which on an 8 GB Mac running a browser
+    and a call pushes it into swap; Cloud stays near 0.2 GB."""
+    if hw is None:
+        hw = hardware()
+    if lockdown is None:
+        lockdown = policy.lockdown_enabled()
+    gb = float(hw.get('memory_gb') or 0)
+    shown = f'{gb:g}'
+    cloud_reason = 'Fastest, and light on this Mac: speech audio and the transcript go to Google Gemini (needs a key).'
+    if hw.get('architecture') not in ('arm64', 'aarch64'):
+        apple = 'Local models need an Apple Silicon Mac.'
+        modes = dict(local_light=('blocked', apple), local_thorough=('blocked', apple), cloud=('recommended', cloud_reason))
+    elif gb >= THOROUGH_GB:
+        modes = dict(local_thorough=('recommended', f'Best for this Mac: the larger local model fits in {shown} GB, and everything stays on this Mac.'),
+                     local_light=('ok', 'Faster, slightly less accurate; everything stays on this Mac.'),
+                     cloud=('ok', cloud_reason))
+    elif gb >= LOW_RAM_GB or gb == 0:  # 0: memory unknown, assume a typical Mac
+        modes = dict(local_light=('recommended', 'Best for this Mac: runs well on it, and everything stays on this Mac.'),
+                     local_thorough=('warn' if gb else 'ok', f'May be slow: the larger model needs most of this Mac\'s {shown} GB.'
+                                     if gb else 'The larger local model; needs 24 GB of memory to run well.'),
+                     cloud=('ok', cloud_reason))
+    else:
+        modes = dict(cloud=('recommended', 'Best for this Mac: nothing heavy runs on it; speech audio and the transcript go to Google Gemini (needs a key).'),
+                     local_light=('warn', 'Transcription competes with your call for memory; expect slow notes.'),
+                     local_thorough=('blocked', f'Needs at least {LOW_RAM_GB} GB of memory; this Mac has {shown} GB.'))
+    modes = {m: dict(level=level, reason=reason) for m, (level, reason) in modes.items()}
+    if lockdown:
+        modes['cloud'] = dict(level='blocked', reason='Turned off by enterprise lockdown: processing stays on this Mac.')
+    recommended = next((m for m in _ORDER if modes[m]['level'] == 'recommended'), None)
+    if recommended is None:  # lockdown took Cloud away: the best local mode that is left
+        recommended = next((m for lvl in ('ok', 'warn') for m in _ORDER if modes[m]['level'] == lvl), 'local_light')
+        if modes[recommended]['level'] == 'ok':
+            modes[recommended]['level'] = 'recommended'
+    low_ram = 0 < gb < LOW_RAM_GB
+    warning = (f'This Mac has {shown} GB of memory. Cloud is recommended; Local may be slow or fail on long calls.'
+               if low_ram and not lockdown else
+               f'This Mac has {shown} GB of memory. Local processing may be slow or fail on long calls.' if low_ram else None)
+    return dict(recommended_mode=recommended, memory_gb=gb, low_ram=low_ram, warning=warning,
+                modes={m: modes[m] for m in MODES})
 
 
 def choose_template(requested, generate, transcript, context):

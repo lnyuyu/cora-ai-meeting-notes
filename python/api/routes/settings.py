@@ -373,7 +373,9 @@ def get_api_audio_devices(req, path: str, query: dict) -> None:
 @route('GET', '/api/processing')
 def get_api_processing(req, path: str, query: dict) -> None:
     import processing
-    return req.send_json(dict(preferences=processing.preferences(), hardware=processing.hardware(),
+    hardware = processing.hardware()
+    return req.send_json(dict(preferences=processing.preferences(), hardware=hardware,
+                              recommendation=processing.recommend(hardware),
                               templates=[dict(id=k, name=v[0], description=v[1]) for k, v in processing.TEMPLATES.items()]))
 
 
