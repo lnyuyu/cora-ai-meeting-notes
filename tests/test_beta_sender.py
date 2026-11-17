@@ -321,7 +321,7 @@ def test_with_sharing_vetoed_the_sender_opens_no_socket_at_all(team_build, monke
     ("no_url", "no_receiver"), ("no_token", "no_receiver"),
 ])
 def test_the_status_says_why_sharing_is_off(team_build, monkeypatch, port, veto, reason):
-    """A team build made without the receiver (0.4.4 on one teammate's Mac) had
+    """A `--team` copy built without the receiver (0.4.4 on one teammate's Mac) had
     the toggle on and sharing_enabled false with nothing saying why; the
     status names the reason, which Settings > Beta shows under the toggle."""
     import db

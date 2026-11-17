@@ -30,37 +30,33 @@ for arg in "$@"; do
   esac
 done
 
-# Beta receiver: every team build that reaches a teammate must send to the
-# receiver, or that tester is invisible (0.4.4, Nov 2026: a team build made
-# without it queued 120 events that could never leave the Mac). The URL and
-# token come from CORA_BETA_RECEIVER_URL / CORA_BETA_TOKEN in this shell, else
-# from the release Mac's file $CORA_BETA_ENV_FILE (default
-# ~/.cora-signing/beta-receiver.env, mode 0600, KEY=value lines, never in the
-# repo). Missing both stops a team build here, before the slow steps.
+# Beta receiver: a Team build must carry it, or its testers are invisible
+# (0.4.4, Nov 2026: a --team copy built without it queued 120 Usage events that
+# could never leave the Mac). The URL and token come from CORA_BETA_RECEIVER_URL
+# / CORA_BETA_TOKEN in this shell, else from the release Mac's file
+# $CORA_BETA_ENV_FILE (default ~/.cora-signing/beta-receiver.env, chmod 600,
+# never in the repo). A --team build without them stops here, before the slow
+# steps. A public build never carries them: its DMG is public.
+source scripts/lib/beta-receiver.sh
 BETA_ENV_FILE="${CORA_BETA_ENV_FILE:-$HOME/.cora-signing/beta-receiver.env}"
-if [[ -f "$BETA_ENV_FILE" ]]; then
-  while IFS='=' read -r key value; do
-    case "$key" in
-      CORA_BETA_RECEIVER_URL) [[ -n "${CORA_BETA_RECEIVER_URL:-}" ]] || export CORA_BETA_RECEIVER_URL="$value" ;;
-      CORA_BETA_TOKEN) [[ -n "${CORA_BETA_TOKEN:-}" ]] || export CORA_BETA_TOKEN="$value" ;;
-    esac
-  done < "$BETA_ENV_FILE"
-fi
-HAVE_RECEIVER=0
-[[ -n "${CORA_BETA_RECEIVER_URL:-}" && -n "${CORA_BETA_TOKEN:-}" ]] && HAVE_RECEIVER=1
 if [[ $NO_TELEMETRY -eq 1 ]]; then
   [[ $TEAM -eq 1 ]] || { echo "--no-telemetry only goes with --team" >&2; exit 1; }
   unset CORA_BETA_RECEIVER_URL CORA_BETA_TOKEN
-  HAVE_RECEIVER=0
-elif [[ $TEAM -eq 1 && $HAVE_RECEIVER -eq 0 ]]; then
-  cat >&2 <<MSG
-error: a team build needs the beta receiver, and none was found.
+elif [[ $TEAM -eq 1 ]]; then
+  beta_receiver_load "$BETA_ENV_FILE"
+  PROBLEM="$(beta_receiver_problem)"
+  if [[ -n "$PROBLEM" ]]; then
+    cat >&2 <<MSG
+error: a Team build needs the beta receiver: $PROBLEM.
        Set CORA_BETA_RECEIVER_URL and CORA_BETA_TOKEN, or put them in
        $BETA_ENV_FILE (KEY=value lines, chmod 600).
-       Teammates install the published build (docs/TEAM_SETUP.md step 1); they never build their own.
-       For a local test build that must not send, pass --team --no-telemetry.
+       Teammates install the published release (docs/TEAM_SETUP.md step 1); they never build their own.
+       For a local copy that must not send, pass --team --no-telemetry.
 MSG
-  exit 1
+    exit 1
+  fi
+else
+  unset CORA_BETA_RECEIVER_URL CORA_BETA_TOKEN
 fi
 
 VERSION="$(node -p "require('./package.json').version")"
@@ -134,15 +130,13 @@ say "Stamping build-info.json"
 VARIANT=public; [[ $TEAM -eq 1 ]] && VARIANT=team
 COMMIT="$(git rev-parse --short HEAD 2>/dev/null || true)"
 node src/build-info.js "$PWD/$APP/Contents/Resources" "$VERSION" "$COMMIT" "$VARIANT"
-if [[ $TEAM -eq 1 && $NO_TELEMETRY -eq 0 ]]; then
-  # Read back what the app will read at launch: both fields non-empty.
-  node -e 'const i=require(process.argv[1]); if(!i.receiver_url||!i.token){console.error("error: build-info.json has no receiver; this team build would never send");process.exit(1)}' \
-    "$PWD/$APP/Contents/Resources/build-info.json"
+# Read back what the app will read at launch.
+beta_receiver_check_stamped "$PWD/$APP/Contents/Resources/build-info.json" \
+  "$([[ $TEAM -eq 1 && $NO_TELEMETRY -eq 0 ]] && echo required || echo absent)"
+if [[ $NO_TELEMETRY -eq 1 ]]; then
+  printf '\033[33mwarning:\033[0m --no-telemetry: this --team copy never sends. Do not publish it.\n' >&2
+elif [[ $TEAM -eq 1 ]]; then
   echo "beta receiver: stamped"
-elif [[ $NO_TELEMETRY -eq 1 ]]; then
-  printf '\033[33mwarning:\033[0m --no-telemetry: this team build never sends. Do not publish it.\n' >&2
-elif [[ $HAVE_RECEIVER -eq 0 ]]; then
-  printf '\033[33mwarning:\033[0m CORA_BETA_RECEIVER_URL/CORA_BETA_TOKEN not set; this build will not send beta telemetry\n' >&2
 fi
 
 say "Signing"

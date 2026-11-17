@@ -39,8 +39,9 @@ function shareStatusText(status){
   if(status.sharing_off_reason) return SHARE_OFF_TEXT[status.sharing_off_reason] || '';
   if(status.sharing_enabled !== true) return '';
   if(status.last_error) return `Last send failed: ${status.last_error}`;
-  if(status.last_flush_at) return `Last sent ${new Date(status.last_flush_at).toLocaleString()}.`;
-  return status.unsent_events ? `${status.unsent_events} events waiting to send.` : '';
+  const waiting = status.unsent_events ? `${status.unsent_events} events waiting to send.` : '';
+  if(status.last_flush_at) return `Last sent ${new Date(status.last_flush_at).toLocaleString()}.${waiting ? ' ' + waiting : ''}`;
+  return waiting;
 }
 
 async function loadShareStatus(){

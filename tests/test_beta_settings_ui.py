@@ -163,7 +163,7 @@ def test_the_beta_section_has_a_hidden_share_status_line_under_the_toggle():
 
 @needs_node
 def test_a_build_without_the_receiver_says_so_under_the_toggle(tmp_path):
-    """The toggle alone looked like sharing on a team build made without the
+    """The toggle alone looked like sharing on a `--team` copy built without the
     receiver (0.4.4, one teammate): nothing ever left the Mac."""
     run_node(tmp_path, r'''
 run(async () => {

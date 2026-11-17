@@ -202,7 +202,7 @@ def sharing_off_reason() -> str | None:
     """Why the sender may deliver nothing, or None when it may:
     "lockdown" (enterprise lockdown), "switched_off" (the Settings toggle), or
     "no_receiver" (this build carries no receiver URL or token: a copy built
-    from source, or a team build made without them, as on one 0.4.4 Mac)."""
+    from source, or a `--team` copy built without them, as on one 0.4.4 Mac)."""
     import policy
     if policy.lockdown_enabled():
         return "lockdown"
