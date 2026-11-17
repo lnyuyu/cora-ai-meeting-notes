@@ -212,6 +212,36 @@ def post_api_recording_title(req, path: str, body: dict) -> None:
     return req.send_json({"ok": True, "title": new_title})
 
 
+CAPTURE_NOTICES = ("ax_untrusted",)
+
+
+def _recording_or_live(rec_id: str) -> dict:
+    """The Recording row for an id, or for the live id it was recorded under."""
+    rec = db.get_recording(rec_id) or db.get_recording_by_live_id(rec_id)
+    if not rec:
+        raise FileNotFoundError(rec_id)
+    return rec
+
+
+def _set_metadata(rec_id: str, **fields) -> None:
+    rec = _recording_or_live(rec_id)
+    metadata = rec.get("metadata") or {}
+    metadata.update(fields)
+    db.update_recording_data(rec["id"], "metadata", metadata)
+
+
+@route("POST", '/api/recording/capture-notice')
+def post_api_recording_capture_notice(req, path: str, body: dict) -> None:
+    """Electron, at stop: a Call recorded with no Participants while
+    Accessibility was not granted. Shown on the Recording (views.capture_notice);
+    archiving carries it from the live row to the archived one."""
+    notice = body.get("notice")
+    if notice not in CAPTURE_NOTICES:
+        raise ValueError(f"notice must be one of {CAPTURE_NOTICES}")
+    _set_metadata(str(body.get("id") or ""), capture_notice=notice)
+    return req.send_json({"ok": True})
+
+
 @route("POST", '/api/recording/confirm-speaker')
 def post_api_recording_confirm_speaker(req, path: str, body: dict) -> None:
     """"Which speaker is you?" on a single-track import: the picked speaker

@@ -47,6 +47,8 @@ function createBackendApi({ postJson, fetchJson }) {
     }),
     appendNote: (id, text) => postJson('/api/recording/notes/append', { id, text }),
     setTitle: (id, title) => postJson('/api/recording/title', { id, title }),
+    // A notice shown on the Recording ('ax_untrusted'): python/api/routes/recordings.py.
+    setCaptureNotice: (id, notice) => postJson('/api/recording/capture-notice', { id, notice }),
     addLiveEntry: (entry) => postJson('/api/recording/live-entry', entry),
     // One Usage event (python/usage_events.py CATALOG); rejects on a 400.
     recordEvent: (name, payload) => postJson('/api/events', { name, payload }),

@@ -124,6 +124,8 @@ const recording = createRecordingSession({
     chosen: () => fetchSetting('microphone'),
     devices: () => knownMicDevices,
   },
+  // Read at stop: a Call with no names while this is false gets a notice.
+  permissions: { accessibilityTrusted: () => systemPreferences.isTrustedAccessibilityClient(false) },
 });
 
 const isCapturing = () => recording.state().phase === 'recording';

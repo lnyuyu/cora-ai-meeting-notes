@@ -133,3 +133,4 @@ def test_the_picker_route_confirms_which_speaker_is_you(monkeypatch):
     result = diarization.confirm_speaker(folder, "Speaker 2")
     assert result["speaker_id"] == "Speaker 2"
     assert recording_stage.stage(db.get_recording("import-pick")) == "ready"
+

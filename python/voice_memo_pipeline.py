@@ -400,6 +400,7 @@ def process(path: Path, key: str, config: dict) -> Path:
         pending_meeting_tool = pending_meta.get("meeting_tool")
         pending_folder_id = pending_meta.get("folder_id")
         pending_continues_recording_id = pending_meta.get("continues_recording_id")
+        pending_capture_notice = pending_meta.get("capture_notice")
         pending_notes = (pending_rec or {}).get("notes") or ""
 
         # Analysis is intentionally deferred to Gemini's native audio pipeline.
@@ -438,6 +439,8 @@ def process(path: Path, key: str, config: dict) -> Path:
             metadata["folder_id"] = pending_folder_id
         if pending_continues_recording_id:
             metadata["continues_recording_id"] = resolve_continues_id(pending_continues_recording_id)
+        if pending_capture_notice:
+            metadata["capture_notice"] = pending_capture_notice
 
         # Companion Accessibility speaker timeline from speaker-watch
         speakers_source = path.parent / (path.stem + "_speakers.json")

@@ -192,3 +192,31 @@ test('a cancelled recording counts as a stop, and a failing count never touches 
   await flush();
   assert.equal(session.state().phase, 'idle');
 });
+
+// A Call recorded with no names while Accessibility is not granted says so on
+// the Recording (capture notice), instead of failing silently.
+test('no Participants from a Call while Accessibility is untrusted puts a notice on the Recording', async () => {
+  const { session, api } = setup({ permissions: { accessibilityTrusted: () => false } });
+  api.setCaptureNotice = async (...args) => { api.calls.push(['setCaptureNotice', ...args]); };
+  const { id } = session.start({ meeting: 'Slack Huddle', startedFrom: 'call_prompt' });
+  await session.stop('user');
+  await flush();
+  assert.deepEqual(api.named('setCaptureNotice'), [['setCaptureNotice', id, 'ax_untrusted']]);
+});
+
+test('no capture notice when Accessibility is granted, names were captured, or there was no Call', async () => {
+  for (const [permissions, meeting, roster] of [
+    [{ accessibilityTrusted: () => true }, 'Zoom', []],
+    [{ accessibilityTrusted: () => false }, 'Zoom', [{ raw_name: 'Asha' }]],
+    [{ accessibilityTrusted: () => false }, undefined, []],
+    [undefined, 'Zoom', []],
+  ]) {
+    const { session, api } = setup(permissions ? { permissions } : {});
+    api.setCaptureNotice = async (...args) => { api.calls.push(['setCaptureNotice', ...args]); };
+    const { id } = session.start({ meeting });
+    api.recordings[id] = { id, participants: roster };
+    await session.stop('user');
+    await flush();
+    assert.deepEqual(api.named('setCaptureNotice'), [], `meeting=${meeting} roster=${roster.length}`);
+  }
+});

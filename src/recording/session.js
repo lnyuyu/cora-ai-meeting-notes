@@ -119,7 +119,7 @@ function deferredHelper(startHelper, optsPromise) {
 // Where a Recording was started from, as recording_started reports it.
 const STARTED_FROM = new Set(['new_note', 'tray', 'call_prompt', 'continue']);
 
-function createRecordingSession({ startHelper, api, clock, queue, people = {}, microphone = null, newRecordingId = recordingIdAt }) {
+function createRecordingSession({ startHelper, api, clock, queue, people = {}, microphone = null, newRecordingId = recordingIdAt, permissions = {} }) {
   const events = new EventEmitter();
   const selfName = people.selfName || (() => null);
   const labelSpeaker = people.labelSpeaker || ((name) => name);
@@ -343,6 +343,17 @@ function createRecordingSession({ startHelper, api, clock, queue, people = {}, m
       warnings: warnings.size,
       linked_people: [...people.values()].filter(Boolean).length,
     });
+    // A Call recorded with no names while Accessibility is not granted (Slack
+    // and Zoom desktop name people only through it): say so on the Recording,
+    // with a button to the pane, instead of failing silently.
+    if (people.size === 0 && u.meeting && permissions.accessibilityTrusted && api.setCaptureNotice) {
+      let trusted = true;
+      try { trusted = permissions.accessibilityTrusted() !== false; } catch { trusted = true; }
+      if (!trusted) {
+        api.setCaptureNotice(u.id, 'ax_untrusted')
+          .catch((err) => console.warn('[Cora capture] notice not stored:', err && err.message));
+      }
+    }
   }
 
   // Finalize a stopped Recording in the background: wait for its helpers,
