@@ -198,11 +198,26 @@ def seed_display_name() -> None:
     db.set_setting("beta_display_name_seeded", True)
 
 
+def sharing_off_reason() -> str | None:
+    """Why the sender may deliver nothing, or None when it may:
+    "lockdown" (enterprise lockdown), "switched_off" (the Settings toggle), or
+    "no_receiver" (this build carries no receiver URL or token: a copy built
+    from source, or a team build made without them, as on one 0.4.4 Mac)."""
+    import policy
+    if policy.lockdown_enabled():
+        return "lockdown"
+    if not share_usage():
+        return "switched_off"
+    if not (os.environ.get("CORA_BETA_RECEIVER_URL", "").strip()
+            and os.environ.get("CORA_BETA_TOKEN", "").strip()):
+        return "no_receiver"
+    return None
+
+
 def sharing_enabled() -> bool:
     """Whether the sender may deliver anything: the toggle is on, lockdown is
     off, and this build carries a receiver URL and token."""
-    return bool(share_usage() and os.environ.get("CORA_BETA_RECEIVER_URL", "").strip()
-                and os.environ.get("CORA_BETA_TOKEN", "").strip())
+    return sharing_off_reason() is None
 
 
 def _versions() -> tuple[str | None, str | None]:

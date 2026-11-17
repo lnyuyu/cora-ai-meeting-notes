@@ -24,11 +24,38 @@ async function loadBetaSettings(){
       $(selector).dataset.saved = $(selector).value;
     }
   }catch(error){ toast(error.message, true); }
+  await loadShareStatus();
+}
+
+// What the sender can actually do, under the toggle: a switched-on toggle in a
+// build with no receiver used to look like sharing while nothing ever left the Mac.
+const SHARE_OFF_TEXT = {
+  no_receiver: "This copy of Cora can't share with the Cora team: it was built without the team's receiver. Update to the latest version, or reinstall from the team setup page.",
+  lockdown: 'Sharing is off: enterprise lockdown is on.',
+};
+
+function shareStatusText(status){
+  if(!status || typeof status !== 'object') return '';
+  if(status.sharing_off_reason) return SHARE_OFF_TEXT[status.sharing_off_reason] || '';
+  if(status.sharing_enabled !== true) return '';
+  if(status.last_error) return `Last send failed: ${status.last_error}`;
+  if(status.last_flush_at) return `Last sent ${new Date(status.last_flush_at).toLocaleString()}.`;
+  return status.unsent_events ? `${status.unsent_events} events waiting to send.` : '';
+}
+
+async function loadShareStatus(){
+  const el = $('#settingsShareStatus');
+  if(!el) return;
+  let text = '';
+  try{ text = shareStatusText(await api('/api/beta/status')); }catch{}
+  el.textContent = text;
+  el.hidden = !text;
 }
 
 $('#settingsShareUsage')?.addEventListener('change', async (e) => {
   try{ await saveSetting('share_usage', e.target.checked); toast(e.target.checked ? 'Sharing with the Cora team' : 'Sharing turned off'); }
   catch(error){ toast(error.message, true); }
+  await loadShareStatus();
 });
 
 $('#settingsBetaName')?.addEventListener('change', async (e) => {

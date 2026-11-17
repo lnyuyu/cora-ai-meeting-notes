@@ -316,6 +316,30 @@ def test_with_sharing_vetoed_the_sender_opens_no_socket_at_all(team_build, monke
     assert [row["sent_at"] for row in exported()] == [None]
 
 
+@pytest.mark.parametrize("veto,reason", [
+    ("none", None), ("lockdown", "lockdown"), ("share_off", "switched_off"),
+    ("no_url", "no_receiver"), ("no_token", "no_receiver"),
+])
+def test_the_status_says_why_sharing_is_off(team_build, monkeypatch, port, veto, reason):
+    """A team build made without the receiver (0.4.4 on one teammate's Mac) had
+    the toggle on and sharing_enabled false with nothing saying why; the
+    status names the reason, which Settings > Beta shows under the toggle."""
+    import db
+    import usage_events
+    if veto == "lockdown":
+        monkeypatch.setenv("VOICECOACH_ENTERPRISE_LOCKDOWN", "1")
+    elif veto == "share_off":
+        db.set_setting("share_usage", False)
+    elif veto == "no_url":
+        monkeypatch.setenv("CORA_BETA_RECEIVER_URL", "")
+    elif veto == "no_token":
+        monkeypatch.setenv("CORA_BETA_TOKEN", " ")
+    assert usage_events.sharing_off_reason() == reason
+    body = api(port, "GET", "/api/beta/status")[1]
+    assert body["sharing_off_reason"] == reason
+    assert body["sharing_enabled"] is (reason is None)
+
+
 def test_a_remote_config_with_telemetry_off_stops_events_after_the_config_fetch(team_build):
     import beta_sender
     team_build.replies["/v1/config"] = (200, {**DEFAULTS, "telemetry_enabled": False})

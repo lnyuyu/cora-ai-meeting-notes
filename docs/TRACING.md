@@ -143,8 +143,10 @@ or restart loses nothing.
 - **Settings > Beta > Show what Cora shares** (`GET /api/events/export`) writes every row, sent and
   unsent, to `<data>/usage-events-export.jsonl` (`id`, `name`, `ts`, `payload`, `sent_at`) and
   reveals it in Finder.
-- `GET /api/beta/status` → `sharing_enabled`, `unsent_events`, `pending_captures`,
-  `last_flush_at`, `last_error`.
+- `GET /api/beta/status` → `sharing_enabled`, `sharing_off_reason` (`null`, `lockdown`,
+  `switched_off` or `no_receiver`: this build carries no receiver URL or token), `unsent_events`,
+  `pending_captures`, `last_flush_at`, `last_error`. Settings > Beta shows the reason, or the last
+  send, under the share switch.
 
 ### The sender (`python/beta_sender.py`)
 

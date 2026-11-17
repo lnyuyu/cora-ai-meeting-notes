@@ -107,4 +107,5 @@ same install by hand.
 | No "call detected" prompt | Check Accessibility is on (step 2) and, for a Meet or huddle in a browser, step 3 for that browser. Detection covers Chrome, Brave, Edge and Safari, not Arc. You can always start from the menu-bar icon |
 | "Cora can't see inside *browser*" notification | Step 3 is off for that browser: tick Allow JavaScript from Apple Events (Chrome/Brave/Edge: View › Developer; Safari: Develop). Shown once per app start |
 | Meet prompt appears before you join | Same cause: without step 3 Cora only sees the Meet address, not whether you joined |
+| Settings > Beta says "built without the team's receiver" | This copy didn't come from the release. Click Update when the banner offers one, or run the step 1 command again |
 | Anything else | Send Mayank the file at `~/Library/Application Support/Cora AI Meeting Notes/logs` for that meeting (it never leaves your Mac otherwise) |

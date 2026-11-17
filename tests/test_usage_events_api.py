@@ -184,8 +184,8 @@ def test_beta_status_counts_unsent_events_and_no_pending_captures_before_any_flu
     for _ in range(3):
         call(port, "POST", "/api/events", {"name": "notes_viewed", "payload": {}})
     assert call(port, "GET", "/api/beta/status") == (200, {
-        "sharing_enabled": False, "unsent_events": 3, "pending_captures": 0,
-        "last_flush_at": None, "last_error": None})
+        "sharing_enabled": False, "sharing_off_reason": "switched_off", "unsent_events": 3,
+        "pending_captures": 0, "last_flush_at": None, "last_error": None})
 
 
 def test_display_name_is_saved_trimmed_and_clears_to_null(port):

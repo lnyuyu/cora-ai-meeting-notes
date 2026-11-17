@@ -41,7 +41,8 @@ def get_api_events_export(req, path: str, query: dict) -> None:
 
 @route("GET", '/api/beta/status')
 def get_api_beta_status(req, path: str, query: dict) -> None:
-    return req.send_json({"sharing_enabled": usage_events.sharing_enabled(),
+    reason = usage_events.sharing_off_reason()
+    return req.send_json({"sharing_enabled": reason is None, "sharing_off_reason": reason,
                           "unsent_events": usage_events.unsent_count(), **beta_sender.status()})
 
 

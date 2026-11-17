@@ -68,6 +68,10 @@ Domain terms for Cora. Code, docs and reviews use these names. Architecture voca
 
 **Usage event**: one metadata-only record of one thing that happened in an Install (a Recording stopped, processing finished, a setting changed, a rating given). Carries counts, durations, versions, models and error codes, never titles, names, transcripts or note text. Sent to the Cora team during the beta.
 
+**Team build**: the build of Cora given to the Sutra team during the beta, published as a GitHub release and installed with the setup command or the in-app update. It carries the Beta receiver, so its Installs share by default. A copy built from source is not a Team build, whatever it says about itself. _Avoid_: beta build, internal build.
+
+**Beta receiver**: the Cora team's server that Usage events, Feedback and Captured Recordings are sent to during the beta. A Team build carries its address and access token; without them an Install records Usage events but can never send them. _Avoid_: telemetry server, backend.
+
 **Feedback**: an explicit rating a user gives one Recording, aimed at the Recording (capture and transcript), the Notes, or Overall: thumbs up or down, fixed reasons, and an optional comment. The comment is the only free text that leaves the Mac. A general message not tied to a Recording is also Feedback.
 
 **Effort**: how much a person actually did in Cora on one day: the count of *doing* actions (starting, stopping or pausing a Recording, a Notepad save, a transcript correction, renaming a meeting or speaker, linking or adding a Person, a rating, an export or copy of the notes, ticking a To-do, filing into a folder, reprocess or retry, changing a setting). The action counts, not the input: a click, a shortcut and the tray count the same. Opening, switching, searching and filtering are *browsing*, counted apart and not Effort. _Avoid_: engagement, clicks.

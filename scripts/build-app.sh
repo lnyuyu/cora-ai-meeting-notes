@@ -12,17 +12,56 @@
 #
 # Options:  --team   new installs default to the Processing mode recommended for
 #                    their Mac (processing.recommend: Local on 16 GB+, Cloud below;
-#                    only Cloud users paste the team's Gemini key)
+#                    only Cloud users paste the team's Gemini key). A team build
+#                    must carry the beta receiver (see "Beta receiver" below) or
+#                    the build stops before doing any work.
+#           --no-telemetry  with --team: build without the receiver on purpose
+#                    (a local test build that must never send). Never publish one.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 TEAM=0
+NO_TELEMETRY=0
 for arg in "$@"; do
   case "$arg" in
     --team) TEAM=1 ;;
+    --no-telemetry) NO_TELEMETRY=1 ;;
     *) echo "unknown option: $arg" >&2; exit 1 ;;
   esac
 done
+
+# Beta receiver: every team build that reaches a teammate must send to the
+# receiver, or that tester is invisible (0.4.4, Nov 2026: a team build made
+# without it queued 120 events that could never leave the Mac). The URL and
+# token come from CORA_BETA_RECEIVER_URL / CORA_BETA_TOKEN in this shell, else
+# from the release Mac's file $CORA_BETA_ENV_FILE (default
+# ~/.cora-signing/beta-receiver.env, mode 0600, KEY=value lines, never in the
+# repo). Missing both stops a team build here, before the slow steps.
+BETA_ENV_FILE="${CORA_BETA_ENV_FILE:-$HOME/.cora-signing/beta-receiver.env}"
+if [[ -f "$BETA_ENV_FILE" ]]; then
+  while IFS='=' read -r key value; do
+    case "$key" in
+      CORA_BETA_RECEIVER_URL) [[ -n "${CORA_BETA_RECEIVER_URL:-}" ]] || export CORA_BETA_RECEIVER_URL="$value" ;;
+      CORA_BETA_TOKEN) [[ -n "${CORA_BETA_TOKEN:-}" ]] || export CORA_BETA_TOKEN="$value" ;;
+    esac
+  done < "$BETA_ENV_FILE"
+fi
+HAVE_RECEIVER=0
+[[ -n "${CORA_BETA_RECEIVER_URL:-}" && -n "${CORA_BETA_TOKEN:-}" ]] && HAVE_RECEIVER=1
+if [[ $NO_TELEMETRY -eq 1 ]]; then
+  [[ $TEAM -eq 1 ]] || { echo "--no-telemetry only goes with --team" >&2; exit 1; }
+  unset CORA_BETA_RECEIVER_URL CORA_BETA_TOKEN
+  HAVE_RECEIVER=0
+elif [[ $TEAM -eq 1 && $HAVE_RECEIVER -eq 0 ]]; then
+  cat >&2 <<MSG
+error: a team build needs the beta receiver, and none was found.
+       Set CORA_BETA_RECEIVER_URL and CORA_BETA_TOKEN, or put them in
+       $BETA_ENV_FILE (KEY=value lines, chmod 600).
+       Teammates install the published build (docs/TEAM_SETUP.md step 1); they never build their own.
+       For a local test build that must not send, pass --team --no-telemetry.
+MSG
+  exit 1
+fi
 
 VERSION="$(node -p "require('./package.json').version")"
 PRODUCT="Cora AI Meeting Notes"
@@ -95,8 +134,16 @@ say "Stamping build-info.json"
 VARIANT=public; [[ $TEAM -eq 1 ]] && VARIANT=team
 COMMIT="$(git rev-parse --short HEAD 2>/dev/null || true)"
 node src/build-info.js "$PWD/$APP/Contents/Resources" "$VERSION" "$COMMIT" "$VARIANT"
-[[ -n "${CORA_BETA_RECEIVER_URL:-}" && -n "${CORA_BETA_TOKEN:-}" ]] \
-  || printf '\033[33mwarning:\033[0m CORA_BETA_RECEIVER_URL/CORA_BETA_TOKEN not set; this build will not send beta telemetry\n' >&2
+if [[ $TEAM -eq 1 && $NO_TELEMETRY -eq 0 ]]; then
+  # Read back what the app will read at launch: both fields non-empty.
+  node -e 'const i=require(process.argv[1]); if(!i.receiver_url||!i.token){console.error("error: build-info.json has no receiver; this team build would never send");process.exit(1)}' \
+    "$PWD/$APP/Contents/Resources/build-info.json"
+  echo "beta receiver: stamped"
+elif [[ $NO_TELEMETRY -eq 1 ]]; then
+  printf '\033[33mwarning:\033[0m --no-telemetry: this team build never sends. Do not publish it.\n' >&2
+elif [[ $HAVE_RECEIVER -eq 0 ]]; then
+  printf '\033[33mwarning:\033[0m CORA_BETA_RECEIVER_URL/CORA_BETA_TOKEN not set; this build will not send beta telemetry\n' >&2
+fi
 
 say "Signing"
 # Sign nested Mach-O files first (bundled Python, ffmpeg and helpers), then the app.

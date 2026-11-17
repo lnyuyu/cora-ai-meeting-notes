@@ -56,6 +56,13 @@ Local · Thorough at 24 GB+, Local · Light at 16 to 23 GB, Cloud under 16 GB or
 user who picks Cloud pastes the Gemini key. Existing installs keep their `config.json`. Release signing needs a one-time `./scripts/signing-setup.sh` on the build machine;
 back up `~/.cora-signing` (losing it means everyone re-grants permissions once).
 
+A team build must carry the beta receiver, or its testers never show up in the usage data. The
+script takes `CORA_BETA_RECEIVER_URL` and `CORA_BETA_TOKEN` from the shell, else from
+`~/.cora-signing/beta-receiver.env` (`KEY=value` lines, `chmod 600`, never committed), and stops
+before building if either is missing. `--team --no-telemetry` builds a local team copy that never
+sends; never publish one. Teammates install the published release (`docs/TEAM_SETUP.md` step 1),
+never a build of their own.
+
 ## Install the DMG by hand
 
 1. Download `Cora-AI-Meeting-Notes-<version>-arm64.dmg` from the

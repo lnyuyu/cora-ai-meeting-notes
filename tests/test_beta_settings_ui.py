@@ -36,6 +36,7 @@ const fire = async (selector, event='click') => {
 const calls = [];
 const toasts = [];
 const saved = {share_usage: true, beta_display_name: null, audio_retention_days: 30, audio_cap_mb: 500};
+let betaStatus = {sharing_enabled: true, sharing_off_reason: null, unsent_events: 0, last_flush_at: null, last_error: null};
 const rejects = {audio_cap_mb: v => v < 50 ? 'audio_cap_mb must be a whole number of at least 50' : null};
 async function api(path, opts={}){
   const body = opts.body ? JSON.parse(opts.body) : null;
@@ -49,6 +50,7 @@ async function api(path, opts={}){
   }
   if(path === '/api/settings') return {value: saved[body.key] ?? null};
   if(path === '/api/events/export') return {path: '/data/usage-events-export.jsonl'};
+  if(path === '/api/beta/status') return betaStatus;
   return {};
 }
 const writes = key => calls.filter(c => c.path === '/api/settings' && c.body && c.body.key === key && 'value' in c.body).map(c => c.body.value);
@@ -149,6 +151,62 @@ run(async () => {
   node('#settingsShareUsage').checked = true;
   await fire('#settingsShareUsage', 'change');
   assert.deepEqual(writes('share_usage'), [false, true]);
+});
+''')
+
+
+def test_the_beta_section_has_a_hidden_share_status_line_under_the_toggle():
+    section = beta_section()
+    assert '<p class="settings-sub" id="settingsShareStatus" hidden></p>' in section
+    assert section.index('id="settingsShareUsage"') < section.index('id="settingsShareStatus"')
+
+
+@needs_node
+def test_a_build_without_the_receiver_says_so_under_the_toggle(tmp_path):
+    """The toggle alone looked like sharing on a team build made without the
+    receiver (0.4.4, one teammate): nothing ever left the Mac."""
+    run_node(tmp_path, r'''
+run(async () => {
+  betaStatus = {sharing_enabled: false, sharing_off_reason: 'no_receiver', unsent_events: 121, last_flush_at: null, last_error: null};
+  await showBeta();
+  assert.equal(node('#settingsShareUsage').checked, true);
+  assert.equal(node('#settingsShareStatus').hidden, false);
+  assert.match(node('#settingsShareStatus').textContent, /built without the team's receiver/);
+  assert.match(node('#settingsShareStatus').textContent, /Update to the latest version/);
+
+  betaStatus = {sharing_enabled: false, sharing_off_reason: 'lockdown', unsent_events: 0, last_flush_at: null, last_error: null};
+  await fire('nav:profile'); await showBeta();
+  assert.equal(node('#settingsShareStatus').textContent, 'Sharing is off: enterprise lockdown is on.');
+
+  // Switched off: the toggle already says it, so no line.
+  betaStatus = {sharing_enabled: false, sharing_off_reason: 'switched_off', unsent_events: 3, last_flush_at: null, last_error: null};
+  await fire('nav:profile'); await showBeta();
+  assert.equal(node('#settingsShareStatus').hidden, true);
+});
+''')
+
+
+@needs_node
+def test_with_sharing_on_the_line_shows_the_last_send_or_its_error(tmp_path):
+    run_node(tmp_path, r'''
+run(async () => {
+  betaStatus = {sharing_enabled: true, sharing_off_reason: null, unsent_events: 4, last_flush_at: null, last_error: null};
+  await showBeta();
+  assert.equal(node('#settingsShareStatus').textContent, '4 events waiting to send.');
+
+  betaStatus = {...betaStatus, last_flush_at: '2026-11-17T08:00:00Z'};
+  await fire('nav:profile'); await showBeta();
+  assert.match(node('#settingsShareStatus').textContent, /^Last sent /);
+
+  betaStatus = {...betaStatus, last_error: 'URLError: timed out'};
+  await fire('nav:profile'); await showBeta();
+  assert.equal(node('#settingsShareStatus').textContent, 'Last send failed: URLError: timed out');
+
+  // Turning the toggle re-reads the status.
+  const before = calls.filter(c => c.path === '/api/beta/status').length;
+  node('#settingsShareUsage').checked = false;
+  await fire('#settingsShareUsage', 'change');
+  assert.equal(calls.filter(c => c.path === '/api/beta/status').length, before + 1);
 });
 ''')
 
