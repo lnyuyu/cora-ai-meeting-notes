@@ -956,6 +956,12 @@ mark.search-match.active {
 .failure-message{margin:0;color:var(--coral)}
 .notepad-continuation-banner.failure-notice{margin-top:0;border-color:color-mix(in srgb, var(--coral) 35%, var(--hairline))}
 .failure-notice .button{cursor:pointer}
+.recording-notices{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+.recording-notice{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 12px;border:1px solid color-mix(in srgb, var(--warning, #b45309) 35%, var(--hairline));border-radius:8px;background:var(--surface-2);font-size:13px}
+/* Low-memory warning (Settings > Processing, onboarding step 5): yellow, hard to miss. */
+.low-ram-banner{padding:10px 12px;margin:0 0 12px;border-radius:8px;border:1px solid color-mix(in srgb, #d4a106 55%, var(--hairline));background:color-mix(in srgb, #f5c518 16%, var(--surface));color:var(--ink);font-size:13px}
+.recording-notice > span{flex:1 1 260px}
+.recording-notice select{max-width:240px}
 
 .processing-controls { display: grid; gap: 10px; margin: 12px 0 20px; }
 .processing-controls label, #summarizeModelList label { display: grid; gap: 6px; margin: 8px 0; }

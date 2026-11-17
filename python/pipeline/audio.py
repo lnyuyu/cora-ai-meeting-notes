@@ -266,6 +266,21 @@ def _to_original_time(trimmed_t: float, mapping: list[tuple[float, float, float]
     return orig_start + (trimmed_t - t_start)
 
 
+def audio_stream_count(audio_path: Path) -> int | None:
+    """How many audio tracks the file holds: 2 for a Recording Cora captured
+    (track 0 = your mic, track 1 = the call's system audio), 1 for most
+    imports. None when ffprobe cannot tell."""
+    ffprobe = shutil.which("ffprobe") or "/opt/homebrew/bin/ffprobe"
+    try:
+        probe = subprocess.run(
+            [ffprobe, "-v", "error", "-show_entries", "stream=index", "-select_streams", "a", "-of", "json", str(audio_path)],
+            capture_output=True, text=True, check=True,
+        )
+        return len(json.loads(probe.stdout).get("streams", []))
+    except Exception:
+        return None
+
+
 def ensure_mixed_audio(audio_path: Path) -> Path:
     """dual-capture writes audio.mov with the mic and system-audio tracks as
     two SEPARATE audio streams (verified: `ffprobe` on a real recording
@@ -289,15 +304,9 @@ def ensure_mixed_audio(audio_path: Path) -> Path:
     (voice memos, already-mixed sources) or on any ffprobe/ffmpeg failure —
     never worse than the previous (mic-only) behavior.
     """
-    ffprobe = shutil.which("ffprobe") or "/opt/homebrew/bin/ffprobe"
-    try:
-        probe = subprocess.run(
-            [ffprobe, "-v", "error", "-show_entries", "stream=index", "-select_streams", "a", "-of", "json", str(audio_path)],
-            capture_output=True, text=True, check=True,
-        )
-        stream_count = len(json.loads(probe.stdout).get("streams", []))
-    except Exception as exc:
-        print(f"[Local MLX] Failed to probe audio streams for mixing, using file as-is: {exc}", flush=True)
+    stream_count = audio_stream_count(audio_path)
+    if stream_count is None:
+        print("[Local MLX] Failed to probe audio streams for mixing, using file as-is", flush=True)
         return audio_path
     if stream_count < 2:
         return audio_path

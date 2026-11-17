@@ -333,6 +333,7 @@ const fmtMinutes = seconds => seconds < 60 ? 'Under 1 min' : `${Math.round(secon
 // and, when the cloud engine rejected some Windows, how many minutes were
 // transcribed on this Mac or left as gaps (the item's transcription_engines).
 function renderProcessingNotices(record){
+  renderRecordingNotices(record);  // recording-notices.js
   const failureHost = $('#notepadFailureBanner');
   if(failureHost){
     const notice = failureNotice(record);

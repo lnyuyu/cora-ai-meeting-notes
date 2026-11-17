@@ -7,7 +7,7 @@ from typing import Any, Optional
 
 import db
 from participants import _BAD_PARTICIPANT_WORDS, clean_and_validate_participant, same_person_name  # noqa: F401
-from .audio import track_mean_volume
+from .audio import audio_stream_count, track_mean_volume
 from .common import _parse_ts, _write_progress
 
 
@@ -146,3 +146,85 @@ def guess_speaker_from_tracks(audio_path: Path, start_sec: float, end_sec: float
     if mic_db >= sys_db - margin_db:
         return "You"
     return "You"
+
+
+# ---- who "You" is ----------------------------------------------------------
+# Cora captures your microphone as track 0 and the call's audio as track 1;
+# guess_speaker_from_tracks labels mic turns "You" (or your onboarding name
+# when the tracks say nothing). So on a dual-track Recording the pipeline
+# already knows which speaker you are; `identity` records it for export, MCP
+# and a later Coaching, and the Recording never asks "Which speaker is you?".
+# A single-track import cannot tell, and still asks (recording_stage).
+
+MIC_TRACK = "mic_track"
+BACKFILL_FLAG = "identity_backfill_mic_track_done"
+PENDING_STATUSES = ("recording", "processing", "paused")
+
+
+def _self_name() -> Optional[str]:
+    return db.get_setting("pending_self_name") or (db.get_person(db.get_self_person_id() or "") or {}).get("name")
+
+
+def mic_track_identity(speaker_ids, model: Optional[str] = None) -> dict[str, Any]:
+    """The `identity` payload for a dual-track Recording: the speaker the mic
+    track was attributed to ("You", else your onboarding name), or no
+    speaker_id when you never spoke. Same shape as diarization.confirm_speaker."""
+    import time
+    ids = [i for i in speaker_ids if i]
+    self_name = _self_name()
+    speaker_id = "You" if "You" in ids else (self_name if self_name and self_name in ids else None)
+    return {
+        "identity": self_name or "You",
+        "speaker_id": speaker_id,
+        "confirmation_source": MIC_TRACK,
+        "confirmed_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "diarization_model": model,
+    }
+
+
+def write_mic_track_identity(recording_id: str, diarization: dict[str, Any]) -> Optional[dict[str, Any]]:
+    """Write the mic-track identity onto a dual-track Recording, unless you
+    picked your speaker yourself (or voice matching did) and that speaker is
+    still in the transcript. Returns what was written, or None."""
+    current = db.get_recording_data(recording_id, "identity") or {}
+    ids = {s.get("speaker_id") for s in diarization.get("segments") or []} | {
+        s.get("speaker_id") for s in diarization.get("speakers") or []}
+    if current.get("confirmation_source") not in (None, MIC_TRACK) and current.get("speaker_id") in ids:
+        return None
+    identity = mic_track_identity(sorted(i for i in ids if i), model=diarization.get("model"))
+    db.update_recording_data(recording_id, "identity", identity)
+    return identity
+
+
+def _captured_dual_track(rec: dict[str, Any]) -> bool:
+    """Was this Recording captured by Cora with both tracks? Asks the audio
+    file when it is still there; after audio pruning, a live id from the
+    capture session (meeting_<timestamp>) says Cora recorded it."""
+    folder = Path(rec.get("folder_path") or "")
+    audio = next((p for p in folder.glob("audio.*") if p.is_file()), None) if folder.is_dir() else None
+    if audio is not None:
+        count = audio_stream_count(audio)
+        if count is not None:
+            return count >= 2
+    return str((rec.get("metadata") or {}).get("live_recording_id") or "").startswith("meeting_")
+
+
+def backfill_mic_track_identity() -> int:
+    """Once per Install (a settings flag): write the mic-track identity onto
+    every processed dual-track Recording made before 0.4.5 that has none.
+    Returns how many were written."""
+    if db.get_setting(BACKFILL_FLAG):
+        return 0
+    written = 0
+    for rec in db.get_all_recordings():
+        identity = rec.get("identity") or {}
+        if rec.get("status") in PENDING_STATUSES or not rec.get("diarization"):
+            continue
+        if identity.get("speaker_id") or identity.get("confirmation_source"):
+            continue
+        if not _captured_dual_track(rec):
+            continue
+        if write_mic_track_identity(rec["id"], rec["diarization"]) is not None:
+            written += 1
+    db.set_setting(BACKFILL_FLAG, True)
+    return written

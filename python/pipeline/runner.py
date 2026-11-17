@@ -13,11 +13,12 @@ from typing import Any
 import ai_trace
 import db
 import paths
+from .audio import audio_stream_count
 from .common import _parse_ts, _write_progress, format_ts
 from .config import resolve_whisper_model
 from .llm import UNTRUSTED, _last_llm_stats
 from .notes import _markdown_bullets
-from .speakers import _guess_remote_speakers, _load_continuation_segments, guess_speaker_from_tracks, load_accessibility_timeline, load_ax_participants, match_speaker_from_timeline, resolve_other_participant_name
+from .speakers import write_mic_track_identity, _guess_remote_speakers, _load_continuation_segments, guess_speaker_from_tracks, load_accessibility_timeline, load_ax_participants, match_speaker_from_timeline, resolve_other_participant_name
 from .transcriber import transcriber
 from . import romanize
 from .context import build_context
@@ -208,6 +209,9 @@ def _process_recording_local_inner(folder: Path, audio_file: Path, profile: dict
     raw_segments.sort(key=lambda s: s["start"])
     from .windowed import engine_notice, engine_summary
     metadata["transcription_engines"] = engine_summary(raw_segments)
+    # 2 for a Recording Cora captured (mic + call audio): then the mic track
+    # says which speaker is you, and the Recording never asks (recording_stage).
+    metadata["audio_tracks"] = audio_stream_count(audio_file)
     db.update_recording_data(folder.name, "metadata", metadata)
     if notice := engine_notice(metadata["transcription_engines"]):
         db.log_notification(f"Part of \"{title}\" was not transcribed in the cloud", notice, "warning", folder.name)
@@ -383,6 +387,9 @@ def _process_recording_local_inner(folder: Path, audio_file: Path, profile: dict
     db.init_db()
     db.update_recording_data(folder.name, "diarization", diarization_payload)
     db.update_recording_data(folder.name, "call_summary", call_summary_payload)
+    dual_track = (metadata.get("audio_tracks") or 0) >= 2
+    if dual_track:
+        write_mic_track_identity(folder.name, diarization_payload)
 
     resource_entry = log_resource_usage(folder.name, stage_timings, audio_duration, speech_duration,
                                         llm_stats=_last_llm_stats or None)
@@ -454,6 +461,8 @@ def _process_recording_local_inner(folder: Path, audio_file: Path, profile: dict
         db.update_recording_data(parent_folder.name, "diarization", diarization_payload)
         db.update_recording_data(parent_folder.name, "call_summary", call_summary_payload)
         db.update_recording_data(parent_folder.name, "metadata", parent_meta)
+        if dual_track:
+            write_mic_track_identity(parent_folder.name, diarization_payload)
 
         # Retag live transcript and timeline entries to the parent meeting
         live_rec_id = metadata.get("live_recording_id", "")

@@ -212,6 +212,18 @@ def post_api_recording_title(req, path: str, body: dict) -> None:
     return req.send_json({"ok": True, "title": new_title})
 
 
+@route("POST", '/api/recording/confirm-speaker')
+def post_api_recording_confirm_speaker(req, path: str, body: dict) -> None:
+    """"Which speaker is you?" on a single-track import: the picked speaker
+    becomes the Recording's identity (diarization.confirm_speaker)."""
+    import diarization
+    folder = safe_folder(str(body.get("id") or ""))
+    speaker_id = body.get("speaker_id")
+    if not isinstance(speaker_id, str) or not speaker_id:
+        raise ValueError("speaker_id is required")
+    return req.send_json({"ok": True, "identity": diarization.confirm_speaker(folder, speaker_id)})
+
+
 @route("POST", '/api/recording/folder')
 def post_api_recording_folder(req, path: str, body: dict) -> None:
     rec_id = str(body.get("id", ""))

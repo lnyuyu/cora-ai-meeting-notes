@@ -101,7 +101,7 @@ def test_enabled_plugin_view_is_listed_for_the_renderer(port, registered):
     assert status == 200
     listed = {p["id"]: p for p in body["plugins"]}
     assert listed["fake-view"]["view"] == {"id": "fake-view", "title": "Fake page", "subtitle": "Things", "icon": "list"}
-    assert body["stages"]["needs_speaker_confirmation"] == "Identify me"
+    assert body["stages"]["needs_speaker_confirmation"] == "Which speaker is you?"
 
 
 def test_disabled_plugin_is_absent_everywhere(port, registered):

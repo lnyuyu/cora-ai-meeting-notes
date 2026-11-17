@@ -56,6 +56,8 @@ def main() -> None:
     signal.signal(signal.SIGTERM, _raise_keyboard_interrupt)
     import usage_events
     usage_events.seed_display_name()  # beta builds, once: name teammates who onboarded before 0.4.4
+    import threading
+    threading.Thread(target=_backfill_identity, name="identity-backfill", daemon=True).start()
     import beta_sender
     # The port is bound; the daily people_snapshot (a walk of the Recordings
     # folder), the config fetch and the first flush all run on its thread.
@@ -70,6 +72,18 @@ def main() -> None:
         server.server_close()
         audio_pruning.stop()
         beta_sender.stop(final_flush=True)
+
+
+def _backfill_identity() -> None:
+    """0.4.5, once per Install: Recordings Cora captured before then get the
+    mic-track identity, so they stop asking which speaker is you."""
+    try:
+        from pipeline.speakers import backfill_mic_track_identity
+        written = backfill_mic_track_identity()
+        if written:
+            print(f"[identity] mic-track identity written for {written} earlier Recording(s)", flush=True)
+    except Exception as e:  # noqa: BLE001 - a backfill must never stop the server
+        print(f"[identity] backfill failed: {type(e).__name__}: {e}", flush=True)
 
 
 def _raise_keyboard_interrupt(signum, frame) -> None:
