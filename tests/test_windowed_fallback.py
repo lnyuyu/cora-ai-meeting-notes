@@ -180,14 +180,14 @@ def two_stretches(tmp_path):
     return path
 
 
-def _hosted(local_for):
+def _hosted(local_for, memory_gb=lambda: 32.0):
     from pipeline.transcriber import Transcriber, Windowed
 
     def call(clip, duration, block):
         if duration > 35:
             raise WindowInvalid("transcript covers only 10% of the speech")
         return [{"start": 0.0, "end": duration, "text": "cloud words"}]
-    return Transcriber(Windowed(call, engine="gemini", local=local_for), engine="gemini", model="fake")
+    return Transcriber(Windowed(call, engine="gemini", local=local_for, memory_gb=memory_gb), engine="gemini", model="fake")
 
 
 @ffmpeg
@@ -302,3 +302,34 @@ def test_the_recording_item_carries_the_engine_summary(fake_text, fake_transcrib
     item = views.recording_item(db.get_recording("engines-item"))
     assert item["transcription_engines"] == metadata["transcription_engines"]
     assert item["transcription_engines"]["gap_s"] == 60.0
+
+
+# ---- under 16 GB, Cloud never loads the local model -------------------------------
+# Measured 2026-11-13: the Cloud fallback took the pipeline from ~0.2 GB to
+# 1.9 GB (local Whisper), enough to freeze an 8 GB Mac running a call.
+
+@ffmpeg
+def test_under_16_gb_a_rejected_window_stays_a_gap_without_loading_the_local_model(two_stretches, monkeypatch):
+    monkeypatch.setattr(windowed, "extract_clip_flac", _real_extract)
+    built = []
+    segments, _, _ = _hosted(lambda speech, hints: built.append(1) or local(), memory_gb=lambda: 8.0).transcribe(two_stretches)
+    assert built == [], "the local fallback is never even built"
+    assert [s["engine"] for s in segments] == ["gemini", "gap"]
+    assert segments[1]["reason"].endswith(windowed.LOW_MEMORY)
+
+
+def test_rule_counts_reach_the_transcriber():
+    from pipeline.transcriber import Windowed
+    adapter = Windowed(cloud(), engine="gemini", local=lambda speech, hints: None, memory_gb=lambda: 32.0)
+    adapter.stats["coverage"] += 2
+    from pipeline.transcriber import Transcriber
+    assert Transcriber(adapter, engine="gemini", model="m").validation == {"coverage": 2}
+    assert Transcriber(object(), engine="local", model="m").validation is None
+
+
+def test_transcribe_windows_counts_each_rule_that_fired():
+    from collections import Counter
+    stats = Counter()
+    run(caller=cloud(error=WindowInvalid("covers 10%", rule="coverage")), fallback=local(), stats=stats)
+    # the 40 s Window fails every attempt, then both 20 s halves pass
+    assert stats == Counter({"coverage": windowed.ATTEMPTS})

@@ -167,3 +167,28 @@ def test_the_snapshot_is_taken_off_the_main_thread_after_the_port_is_bound(tmp_p
     server.main()
     assert order == ["bound", ("snapshot", False)]
     assert len(_events(tmp_path, "people_snapshot")) == 1
+
+
+def test_processing_finished_counts_which_cloud_transcript_check_fired(
+        tmp_path, monkeypatch, fake_text, fake_transcriber):
+    from pipeline import runner, transcriber
+    folder = _recording("beta-rules", monkeypatch, fake_text, fake_transcriber)
+    real_make = transcriber._make
+
+    def make(profile):
+        t = real_make(profile)
+        t._adapter = type("Hosted", (), {"stats": {"coverage": 3, "clamped": 2}})()
+        return t
+    monkeypatch.setattr(transcriber, "_make", make)
+    runner.process_recording_local(folder, PROFILE)
+
+    [event] = _events(tmp_path, "processing_finished")
+    assert (event["asr_coverage"], event["asr_clamped"], event["asr_outside_window"]) == (3, 2, 0)
+
+
+def test_a_local_run_has_no_cloud_check_counts(tmp_path, monkeypatch, fake_text, fake_transcriber):
+    from pipeline import runner
+    folder = _recording("beta-local", monkeypatch, fake_text, fake_transcriber)
+    runner.process_recording_local(folder, PROFILE)
+    [event] = _events(tmp_path, "processing_finished")
+    assert all(event[k] is None for k in event if k.startswith("asr_"))

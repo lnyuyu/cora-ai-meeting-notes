@@ -89,3 +89,44 @@ def test_invalid_end_and_nonfinite_timestamps_are_retried(start,end):
 def test_boundary_tolerance_and_snap_never_exceed_clip():
     result = ok(turns((0,30.5,'real speech')), vad=[(0,30.5)])
     assert result[0]['end'] <= 30
+
+
+# ---- a Gemini timing slip at the end of a Window is clamped, not rejected ----
+# Seen 2026-11-13: "turn ends at 304.4s outside a 302s window" escalated one
+# timing slip into splits, retries and finally the local model. The tolerance
+# is max(5 s, 3% of the Window): a few seconds of drift over a multi-minute
+# clip is a timestamp error, not wrong words (the model only heard this clip).
+
+def test_a_turn_a_few_seconds_past_the_end_of_a_long_window_is_clamped():
+    stats = {}
+    out = validate_turns(turns((0, 150, "first half " * 10), (150, 304.4, "the last words " * 10)), 302.0,
+                         [(0, 302.0)], [(0, 302.0)], stats=stats)
+    assert out[-1]["end"] == 302.0
+    assert stats == {"clamped": 1}
+
+
+def test_the_tolerance_is_five_seconds_on_a_short_window():
+    out = ok(turns((0, 12, "fine"), (14, 34.9, "a little long")))
+    assert out[-1]["end"] == 30.0
+    with pytest.raises(WindowInvalid) as caught:
+        ok(turns((0, 12, "fine"), (14, 35.5, "too far past")))
+    assert caught.value.rule == "outside_window"
+
+
+def test_forty_seconds_past_a_five_minute_window_is_still_rejected():
+    with pytest.raises(WindowInvalid) as caught:
+        validate_turns(turns((0, 340.0, "words " * 50)), 300.0, [(0, 300.0)], [(0, 300.0)])
+    assert caught.value.rule == "outside_window"
+
+
+@pytest.mark.parametrize("raw, rule", [
+    ({"turns": []}, "malformed"),
+    ([{"start": "soon", "end": 3, "text": "hi"}], "timestamps"),
+    ([{"start": 0, "end": 3, "text": " ".join(f"w{i}" for i in range(200))}], "runaway"),
+    ([], "empty"),
+    ([{"start": 0, "end": 2, "text": "only this"}], "coverage"),
+])
+def test_every_rejection_names_its_rule(raw, rule):
+    with pytest.raises(WindowInvalid) as caught:
+        ok(raw, strict=[(0.0, 10.0), (15.0, 25.0)])
+    assert caught.value.rule == rule

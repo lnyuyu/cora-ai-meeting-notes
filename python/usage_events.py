@@ -28,7 +28,9 @@ CATALOG: dict[str, frozenset[str]] = {name: frozenset(keys.split()) for name, ke
     "participants_captured": "recording_id count method warnings linked_people",
     "processing_finished": "recording_id status error_code transcriber_provider transcriber_model text_provider"
                            " text_model transcription_s summarization_s total_s tokens_in tokens_out"
-                           " window_fallbacks speech_s silence_s retries peak_rss_mb duration_s",
+                           " window_fallbacks speech_s silence_s retries peak_rss_mb duration_s"
+                           " asr_malformed asr_timestamps asr_outside_window asr_runaway asr_empty"
+                           " asr_collapsed asr_coverage asr_other asr_clamped",
     "notes_viewed": "recording_id",
     "notes_edited": "recording_id edit_ratio",
     "transcript_corrected": "recording_id corrections",

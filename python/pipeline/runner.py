@@ -128,6 +128,7 @@ def _process_recording_selected(folder: Path, profile: dict[str, Any]) -> dict[s
             result = _process_recording_local_inner(folder, audio_file, profile)
     except Exception as exc:
         code = _record_failure(folder, exc)
+        _note_last_run(folder.name, profile, "failed", started)
         # The transcriber model comes from the run's traced transcription span, if it got that far.
         usage_emitters.processing_finished(folder.name, profile, run_id=run_id, started=started, error_code=code)
         raise
@@ -135,7 +136,23 @@ def _process_recording_selected(folder: Path, profile: dict[str, Any]) -> dict[s
     usage_emitters.processing_finished(result["recording_id"], profile, run_id=run_id, started=started, **usage)
     (folder / ".pipeline_progress.json").unlink(missing_ok=True)
     db.set_processing_failure(result["recording_id"], None)
+    _note_last_run(result["recording_id"], profile, "ok", started)
     return result
+
+
+def _note_last_run(recording_id: str, profile: dict[str, Any], status: str, started: float) -> None:
+    """metadata.last_run {mode, status, total_s}: lets the Recording offer
+    Cloud once when a local run on a Mac short of memory failed or took
+    longer than the call (api/views.cloud_offer). A no-op for a gone row."""
+    try:
+        metadata = db.get_recording_data(recording_id, "metadata")
+        if metadata is None:
+            return
+        metadata["last_run"] = {"mode": profile.get("mode"), "status": status,
+                                "total_s": round(time.time() - started, 1)}
+        db.update_recording_data(recording_id, "metadata", metadata)
+    except Exception as exc:  # bookkeeping only; never fail processing over it
+        print(f"[Local Pipeline] last_run not stored: {exc}", flush=True)
 
 
 def _record_failure(folder: Path, exc: BaseException) -> str:
@@ -492,7 +509,8 @@ def _process_recording_local_inner(folder: Path, audio_file: Path, profile: dict
         # For the processing_finished Usage event; popped by the caller.
         "usage": {"resource": resource_entry,
                   "window_fallbacks": len(metadata["transcription_engines"]["windows"]),
-                  "transcriber_model": asr.model},
+                  "transcriber_model": asr.model,
+                  "validation": asr.validation},
     }
 
 

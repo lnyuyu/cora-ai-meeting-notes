@@ -30,7 +30,8 @@ def _sum(values) -> Optional[int]:
 def processing_finished(recording_id: str, profile: dict[str, Any], *, run_id: Optional[str],
                         started: float, resource: Optional[dict[str, Any]] = None,
                         window_fallbacks: Optional[int] = None, error_code: Optional[str] = None,
-                        transcriber_model: Optional[str] = None) -> None:
+                        transcriber_model: Optional[str] = None,
+                        validation: Optional[dict[str, int]] = None) -> None:
     """Record one processing_finished for a run that just ended.
 
     Providers are the Processing profile's choices (the preset names the
@@ -40,7 +41,11 @@ def processing_finished(recording_id: str, profile: dict[str, Any], *, run_id: O
     run's llm spans; retries counts its failed spans (calls retried or
     replaced by a fallback). Timings, speech/silence, peak RSS and audio
     duration come from the resource-usage entry (absent on a failed run,
-    where peak RSS falls back to the run row's)."""
+    where peak RSS falls back to the run row's). validation: how often each
+    cloud transcript check fired (pipeline/asr_validate.py RULES, one per
+    rejected attempt) and how many turns were clamped to their Window, as
+    asr_<rule> counts; None (all asr_* null) for an engine that validates
+    nothing or a run that failed before transcribing."""
     try:
         run = ai_trace.run_summary(run_id) or {}
         spans = run.get("spans") or []
@@ -67,9 +72,16 @@ def processing_finished(recording_id: str, profile: dict[str, Any], *, run_id: O
             "retries": sum(1 for s in spans if s["status"] == "error"),
             "peak_rss_mb": resource.get("peak_memory_mb") or run.get("peak_rss_mb"),
             "duration_s": resource.get("audio_duration_seconds"),
+            **_asr_counts(validation),
         })
     except Exception as exc:  # never let telemetry break processing
         _warn("processing_finished", exc)
+
+
+def _asr_counts(validation: Optional[dict[str, int]]) -> dict[str, Optional[int]]:
+    from pipeline.asr_validate import RULES
+    return {f"asr_{rule}": (None if validation is None else int(validation.get(rule, 0)))
+            for rule in (*RULES, "clamped")}
 
 
 def _last_snapshot_at() -> Optional[dt.datetime]:

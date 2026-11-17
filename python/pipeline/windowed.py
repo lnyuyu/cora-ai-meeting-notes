@@ -39,6 +39,7 @@ WindowedASRError = WindowedTranscriptionError  # the old name
 REJECTED = "the cloud engine kept rejecting this stretch"
 REFUSED = "the cloud engine refused this stretch"
 NO_LOCAL_MODEL = "no local model is installed"
+LOW_MEMORY = "not transcribed on this Mac, to spare its memory (under 16 GB)"
 LOCAL_FAILED = "local transcription failed"
 LOCAL_SILENT = "no speech found on this Mac"
 
@@ -61,14 +62,23 @@ def transcribe_windows(audio_path: Path, speech: list[tuple[float, float]], cont
                        strict: Optional[list[tuple[float, float]]] = None,
                        fallback: Optional[Fallback] = None,
                        on_window_failed: Optional[WindowFailed] = None,
-                       provider: str = "gemini") -> list[dict[str, Any]]:
+                       provider: str = "gemini", no_fallback_reason: str = NO_LOCAL_MODEL,
+                       stats: Any = None) -> list[dict[str, Any]]:
     """audio_path: the mixed mono recording. speech: its speech stretches.
     context: a MeetingContext. offset: this part's start in the whole recording
     (only for matching screenshot text to the right moment).
     fallback(audio_path, start, end): transcribes a rejected window locally,
     segments in absolute times. on_window_failed(start, end, reason): told of
     every window the cloud engine did not transcribe. provider: the `engine`
-    mark on cloud segments."""
+    mark on cloud segments. no_fallback_reason: why a Window is a gap when
+    there is no fallback. stats: a Counter of validation rules that fired
+    (asr_validate.RULES, one per rejected attempt) and turns clamped."""
+    stats_lock = threading.Lock()
+
+    def count(rule: str) -> None:
+        if stats is not None:
+            with stats_lock:
+                stats[rule] += 1
     call = caller or transcribe_window
     fallback_lock = threading.Lock()  # one local model run at a time, whatever the worker count
 
@@ -87,7 +97,7 @@ def transcribe_windows(audio_path: Path, speech: list[tuple[float, float]], cont
                 print(f"[Cloud ASR] local transcription of {window.start:.0f}-{window.end:.0f}s failed: {exc}", flush=True)
                 reason = f"{reason}; {LOCAL_FAILED}"
         else:
-            reason = f"{reason}; {NO_LOCAL_MODEL}"
+            reason = f"{reason}; {no_fallback_reason}"
         if segments is None:
             print(f"[Cloud ASR] window {window.start:.0f}-{window.end:.0f}s left as a gap: {reason}", flush=True)
             segments = [{"start": window.start, "end": window.end, "text": "", "engine": "gap", "reason": reason}]
@@ -118,9 +128,12 @@ def transcribe_windows(audio_path: Path, speech: list[tuple[float, float]], cont
                     block = context_block(context.title, context.attendees, self_name, glossary, window.duration)
                     context.record(window.start + offset, window.end + offset, "[cloud window] " + ", ".join(glossary))
                     raw = call(clip, window.duration, block)
+                    clamped: dict[str, int] = {}
                     turns = validate_turns(raw, window.duration,
                                            _relative(strict, window.start, window.end),
-                                           _relative(window.stretches, window.start, window.end))
+                                           _relative(window.stretches, window.start, window.end), stats=clamped)
+                    for _ in range(clamped.get("clamped", 0)):
+                        count("clamped")
                     trace.set_output({"validated_turns": len(turns)})
                     return [{"start": window.start + t["start"], "end": window.start + t["end"], "text": t["text"],
                              "engine": provider} for t in turns]
@@ -129,6 +142,8 @@ def transcribe_windows(audio_path: Path, speech: list[tuple[float, float]], cont
                 return replace(window, REFUSED)
             except (WindowInvalid, AsrCallError) as exc:
                 last = exc
+                if isinstance(exc, WindowInvalid):
+                    count(exc.rule)
                 print(f"[Cloud ASR] window {window.start:.0f}-{window.end:.0f}s attempt {attempt + 1}/{ATTEMPTS}: {exc}", flush=True)
                 if attempt < ATTEMPTS - 1:
                     _sleep(BACKOFF_S[min(attempt, len(BACKOFF_S) - 1)])

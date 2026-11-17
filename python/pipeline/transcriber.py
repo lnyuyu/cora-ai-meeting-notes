@@ -43,6 +43,13 @@ class Transcriber:
     def __init__(self, adapter: Any, *, engine: str, model: str) -> None:
         self._adapter, self.engine, self.model = adapter, engine, model
 
+    @property
+    def validation(self) -> Optional[dict[str, int]]:
+        """Hosted engines: how often each asr_validate rule fired this run
+        (and turns clamped); None for an engine that validates nothing."""
+        stats = getattr(self._adapter, "stats", None)
+        return None if stats is None else dict(stats)
+
     def transcribe(self, audio_path: Path, *, prompt: str = "", context: Any = None,
                    prompt_for: Optional[Callable[[float, float], str]] = None, offset: float = 0.0,
                    keep_audio_in: Optional[Path] = None) -> tuple[Segments, float, float]:
@@ -170,21 +177,40 @@ def local_fallback(speech: list[tuple[float, float]], hints: dict[str, Any]
     return fallback
 
 
+def _memory_gb() -> float:
+    import processing
+    return float(processing.hardware().get("memory_gb") or 0)
+
+
 class Windowed:
     """Hosted engines: multi-minute windows through windowed.transcribe_windows,
     with `window(clip, duration, context_block) -> raw turns` as the one call.
     `local(speech, hints)` builds the fallback for rejected Windows (None:
-    none available)."""
+    none available). Under 16 GB of memory it is never built: loading local
+    Whisper took a Cloud run from ~0.2 GB to 1.9 GB and froze an 8 GB Mac
+    during a call (2026-11-13), so a rejected Window stays a marked gap and
+    the Recording offers to process it in the cloud again. `stats` counts
+    which validation rules fired (Transcriber.validation)."""
 
     def __init__(self, window: Callable[[Path, float, str], list[dict[str, Any]]], *, engine: str = "gemini",
-                 local: Callable[..., Optional[Callable[[Path, float, float], Segments]]] = local_fallback) -> None:
-        self.window, self.engine, self.local = window, engine, local
+                 local: Callable[..., Optional[Callable[[Path, float, float], Segments]]] = local_fallback,
+                 memory_gb: Callable[[], float] = _memory_gb) -> None:
+        from collections import Counter
+        self.window, self.engine, self.local, self.memory_gb = window, engine, local, memory_gb
+        self.stats: Counter = Counter()
 
     def segments(self, audio: Path, speech: list[tuple[float, float]], hints: dict[str, Any]) -> Segments:
+        import processing
         from .context import MeetingContext
-        from .windowed import transcribe_windows
+        from .windowed import LOW_MEMORY, NO_LOCAL_MODEL, transcribe_windows
+        gb = self.memory_gb()
+        low_memory = 0 < gb < processing.LOW_RAM_GB
+        if low_memory:
+            print(f"[Cloud ASR] {gb:g} GB of memory: a rejected Window stays a gap (no local fallback)", flush=True)
         return transcribe_windows(audio, speech, hints["context"] or MeetingContext(), offset=hints["offset"],
-                                  caller=self.window, fallback=self.local(speech, hints), provider=self.engine)
+                                  caller=self.window, fallback=None if low_memory else self.local(speech, hints),
+                                  provider=self.engine, no_fallback_reason=LOW_MEMORY if low_memory else NO_LOCAL_MODEL,
+                                  stats=self.stats)
 
 
 _RETRY_STATUS = frozenset({408, 409, 429, 500, 502, 503, 504})

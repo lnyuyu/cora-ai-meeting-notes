@@ -20,10 +20,28 @@ SNAP_S = 1.5
 SATURATED_MIN_WINDOW_S = 20.0  # in a Window longer than this, strict hearing no silence = detector saturated
 SATURATED_SHARE = 0.98         # "no silence": strict speech covers at least this share of the Window
 LEAK_MARKERS = ("names and terms that may come up", "meeting title:", "attendees:")
+# A turn ending past the Window is clamped to its end when the overshoot is
+# within max(OVERSHOOT_S, OVERSHOOT_SHARE x Window); beyond that it is
+# rejected. Seen 2026-11-13: Gemini put "the last words" of a 302 s Window at
+# 304.4 s, and the 1 s tolerance then escalated one timing slip into splits,
+# 3x retries per level and the local model. The model only heard this clip,
+# so a few seconds of drift is a timestamp error, not misplaced words; drift
+# grows with clip length, hence the share (9 s on a 5-minute Window, 5 s on
+# anything under ~3 minutes). 40 s past a 5-minute Window is still rejected.
+OVERSHOOT_S = 5.0
+OVERSHOOT_SHARE = 0.03
+
+# Rule names, for counting which check fired (processing_finished asr_* keys).
+RULES = ("malformed", "timestamps", "outside_window", "runaway", "empty", "collapsed", "coverage", "other")
 
 
 class WindowInvalid(Exception):
-    """The model's answer for this window can't be trusted."""
+    """The model's answer for this window can't be trusted. `rule` names the
+    check that fired (one of RULES)."""
+
+    def __init__(self, message: str = "", rule: str = "other") -> None:
+        super().__init__(message)
+        self.rule = rule if rule in RULES else "other"
 
 
 def _covered(stretch: tuple[float, float], turns: list[dict[str, Any]]) -> float:
@@ -58,56 +76,61 @@ def _snap(value: float, edges: list[float]) -> float:
 
 
 def validate_turns(raw: Any, duration: float, strict: list[tuple[float, float]],
-                   vad: list[tuple[float, float]]) -> list[dict[str, Any]]:
+                   vad: list[tuple[float, float]], stats: Any = None) -> list[dict[str, Any]]:
     """raw: the parsed model reply (a list of {start,end,text}). strict/vad:
-    speech stretches relative to the window start. Returns clean turns."""
+    speech stretches relative to the window start. Returns clean turns.
+    stats: an optional dict-like counter; each turn clamped to the Window's
+    end adds one to stats["clamped"]."""
     if not isinstance(raw, list):
-        raise WindowInvalid("reply is not a list of turns")
+        raise WindowInvalid("reply is not a list of turns", rule="malformed")
+    overshoot = max(OVERSHOOT_S, OVERSHOOT_SHARE * duration)
     turns: list[dict[str, Any]] = []
     for item in raw:
         if not isinstance(item, dict):
-            raise WindowInvalid("turn is not an object")
+            raise WindowInvalid("turn is not an object", rule="malformed")
         text = collapse_repetition_loops(str(item.get("text", "")).strip())
         if not text or any(m in text.lower() for m in LEAK_MARKERS):
             continue
         try:
             start, end = float(item["start"]), float(item["end"])
         except (KeyError, TypeError, ValueError):
-            raise WindowInvalid("turn has no numeric start/end")
+            raise WindowInvalid("turn has no numeric start/end", rule="timestamps")
         if not math.isfinite(start) or not math.isfinite(end):
-            raise WindowInvalid("turn timestamps must be finite")
+            raise WindowInvalid("turn timestamps must be finite", rule="timestamps")
         if end <= start:
-            raise WindowInvalid("turn end must be after its start")
-        if end > duration + 1.0:
-            raise WindowInvalid(f"turn ends at {end:.1f}s outside a {duration:.0f}s window")
+            raise WindowInvalid("turn end must be after its start", rule="timestamps")
+        if end > duration + overshoot:
+            raise WindowInvalid(f"turn ends at {end:.1f}s outside a {duration:.0f}s window", rule="outside_window")
         if start < -1.0 or start > duration + 1.0:
-            raise WindowInvalid(f"turn starts at {start:.1f}s outside a {duration:.0f}s window")
+            raise WindowInvalid(f"turn starts at {start:.1f}s outside a {duration:.0f}s window", rule="outside_window")
+        if end > duration + 1.0 and stats is not None:
+            stats["clamped"] = stats.get("clamped", 0) + 1
         start = min(max(start, 0.0), duration)
         end = min(max(end, start), duration)
         words = len(text.split())
         if words > MAX_WORDS_PER_SECOND * max(end - start, 2.0):
-            raise WindowInvalid(f"{words} words in {end - start:.1f}s (runaway output)")
+            raise WindowInvalid(f"{words} words in {end - start:.1f}s (runaway output)", rule="runaway")
         turns.append({"start": start, "end": end, "text": text})
 
     speech_s = sum(e - s for s, e in strict)
     saturated = _saturated(strict, duration)
     if not turns:
         if saturated:
-            raise WindowInvalid("no transcript for a saturated window")
+            raise WindowInvalid("no transcript for a saturated window", rule="empty")
         if speech_s >= COVERAGE_MIN_SPEECH_S:
-            raise WindowInvalid("no transcript for a window with speech")
+            raise WindowInvalid("no transcript for a window with speech", rule="empty")
         return []
     if sum(len(t["text"].split()) for t in turns) > MAX_WORDS_PER_SECOND * duration:
-        raise WindowInvalid("more words than a window can hold")
+        raise WindowInvalid("more words than a window can hold", rule="runaway")
     if any(b["start"] < a["start"] - 1.0 for a, b in zip(turns, turns[1:])):
-        raise WindowInvalid("timestamps go backwards")
+        raise WindowInvalid("timestamps go backwards", rule="timestamps")
     if len(turns) > 3 and max(t["start"] for t in turns) - min(t["start"] for t in turns) < 0.25 * min(duration, speech_s or duration):
-        raise WindowInvalid("timestamps are collapsed (all turns at nearly the same time)")
+        raise WindowInvalid("timestamps are collapsed (all turns at nearly the same time)", rule="collapsed")
 
     if speech_s >= COVERAGE_MIN_SPEECH_S and not saturated:
         covered = sum(_covered(stretch, turns) for stretch in strict)
         if covered / speech_s < MIN_COVERAGE:
-            raise WindowInvalid(f"transcript covers only {covered / speech_s:.0%} of the speech")
+            raise WindowInvalid(f"transcript covers only {covered / speech_s:.0%} of the speech", rule="coverage")
 
     starts = [s for s, _ in vad]
     ends = [e for _, e in vad]

@@ -242,6 +242,13 @@ def post_api_recording_capture_notice(req, path: str, body: dict) -> None:
     return req.send_json({"ok": True})
 
 
+@route("POST", '/api/recording/cloud-offer/dismiss')
+def post_api_recording_cloud_offer_dismiss(req, path: str, body: dict) -> None:
+    """"Not now" on the offer to process a Recording in the cloud: not offered again."""
+    _set_metadata(str(body.get("id") or ""), cloud_offer_dismissed=True)
+    return req.send_json({"ok": True})
+
+
 @route("POST", '/api/recording/confirm-speaker')
 def post_api_recording_confirm_speaker(req, path: str, body: dict) -> None:
     """"Which speaker is you?" on a single-track import: the picked speaker

@@ -40,7 +40,7 @@ function cloudOfferNotice(record){
   return `<div class="recording-notice" data-notice="cloud">
     <span>${esc(text)}</span>
     <button type="button" class="button secondary small" data-process-in-cloud="${esc(record.id)}">Process in the cloud</button>
-    ${record.cloud_offer === 'gap' ? '' : `<button type="button" class="button small" data-dismiss-cloud-offer="${esc(record.id)}">Not now</button>`}
+    <button type="button" class="button small" data-dismiss-cloud-offer="${esc(record.id)}">Not now</button>
   </div>`;
 }
 

@@ -264,6 +264,31 @@ def pending_recording_item(rec_data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def cloud_offer(metadata: dict) -> str | None:
+    """Why this Recording should offer to be processed in the cloud, or None.
+    "gap": a stretch the cloud engine rejected was left untranscribed (on a
+    Mac under 16 GB the local model is never loaded for it). "failed" /
+    "slow": its last run was local on a Mac where that mode is only `warn`
+    (processing.recommend) and it failed or took longer than the call. Never
+    under enterprise lockdown; "Not now" dismisses it for good."""
+    import policy
+    import processing
+    if metadata.get("cloud_offer_dismissed") or policy.lockdown_enabled():
+        return None
+    last = metadata.get("last_run") or {}
+    mode = last.get("mode")
+    if mode in ("local_light", "local_thorough"):
+        if processing.recommend()["modes"][mode]["level"] in ("warn", "blocked"):
+            if last.get("status") == "failed":
+                return "failed"
+            duration = float(metadata.get("duration_seconds") or 0)
+            if duration and float(last.get("total_s") or 0) > duration:
+                return "slow"
+    if float((metadata.get("transcription_engines") or {}).get("gap_s") or 0) > 0:
+        return "gap"
+    return None
+
+
 def recording_item(folder: Path | dict, detailed: bool = False) -> dict[str, Any]:
     if isinstance(folder, dict):
         rec_data = folder
@@ -375,6 +400,8 @@ def recording_item(folder: Path | dict, detailed: bool = False) -> dict[str, Any
         # A notice from capture ("ax_untrusted": a Call recorded with no
         # Participants while Accessibility was not granted); recording-notices.js.
         "capture_notice": metadata.get("capture_notice"),
+        # "Process this one in the cloud?" (gap | failed | slow), or None.
+        "cloud_offer": cloud_offer(metadata),
         # Set once audio pruning removed this Recording's audio (audio_pruning.py):
         # {at, reason: retention|cap, limit: days or MB}; the notes view says why.
         "audio_pruned": ({"at": metadata["audio_pruned_at"], "reason": metadata.get("audio_pruned_reason"),
