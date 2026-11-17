@@ -30,6 +30,28 @@ Collected from testers on the 0.4.4 pre-release. More to come from today's users
 
 **Fix.** Make the rating optional for general feedback (send `rating: null`; receiver and dashboard accept it). The per-Recording thumbs-down that asks for a reason stays as is.
 
+### Processing mode: prefer Local, recommend by this Mac, warn on low RAM
+
+**Observed.** Two of six team Macs have 8 GB of RAM (M1 and M2; `app_started.ram_gb`), one 8 GB Install opened Cora once and never recorded, and a teammate reported trouble (details pending). Nothing in the app tells an 8 GB user that their Mac is the problem or what to pick instead.
+
+**Cause.** `processing.hardware()` only ever recommends a *local* mode (`local_thorough` at 24 GB+, else `local_light`); it never recommends Cloud and never warns. The UI prints the recommendation as one muted line in Settings (`processing.js`) and in onboarding step 5, where it is easy to miss (see the 2026-11-11 entry on step 5 below). Team builds hard-default to Cloud regardless of the Mac, so the recommendation is ignored anyway.
+
+**Intent.** Local is the preferred default (privacy, no key, no cost). Cora recommends it whenever this Mac can run it well, and recommends Cloud only when it cannot.
+
+**Fix.**
+1. *One rule, one place.* `processing.recommend(hardware)` returns, for each mode, `recommended | ok | warn | blocked` plus a one-line reason. Starting point (to confirm against the local-vs-Gemini comparison and real processing times):
+   - Apple Silicon, 24 GB+: **Local · Thorough** recommended; Light ok; Cloud ok.
+   - 16 to 23 GB: **Local · Light** recommended; Thorough warn ("may be slow"); Cloud ok.
+   - Under 16 GB (8 GB Macs): **Cloud** recommended; Light warn ("transcription competes with your call for memory; expect slow notes"); Thorough blocked.
+   Onboarding, Settings, telemetry and the dashboard all read this; nothing else decides.
+2. *Onboarding step 5 as three cards* (Local · Light, Local · Thorough, Cloud), the recommended one preselected with a "Best for this Mac" badge, each card saying in plain words what stays on the Mac, speed, and memory need. Blocked cards are greyed with the reason. Model lists appear only after choosing a local card (folds in the step 5 entry below). Team builds use the recommendation too instead of forcing Cloud; the Gemini key step appears only if Cloud is chosen.
+3. *Low-RAM warning that is hard to miss.* Under 16 GB: a yellow banner in onboarding and in Settings > Processing: "This Mac has 8 GB of memory. Cloud is recommended; Local may be slow or fail on long calls." Choosing a `warn` mode asks once to confirm.
+4. *Second chance at runtime.* If a local run on a `warn` Mac fails or takes longer than the call itself, offer Cloud once on that Recording ("Process this one in the cloud?"), never automatically.
+5. *Telemetry and dashboard.* `app_started` adds `recommended_mode` (from the same rule). Dashboard Installs table: "Low RAM" badge under 16 GB and a flag when the chosen mode differs from the recommendation, so we know whom to help first.
+6. *Docs.* TEAM_SETUP "Before you start": 16 GB recommended; on 8 GB use Cloud.
+
+Tests: the rule's table (8/16/18/24/64 GB, arm64 vs Intel); onboarding preselects the recommended card; a team build with 8 GB lands on Cloud and with 64 GB on Local · Thorough.
+
 ### Seen alongside (not bugs, worth knowing)
 
 - The tester's Mac processes locally (`local_light`, whisper-small) rather than the team's Cloud default, so transcript and name quality from it is not comparable with Cloud users.
