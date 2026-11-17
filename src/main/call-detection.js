@@ -17,7 +17,7 @@ const { TICK_BUDGET_MS } = require('../meeting-detector');
 // no mic-on is known): the hook for Usage events. clock = { now, setTimeout,
 // clearTimeout } drives the green-room follow-up (injectable for tests). Main feeds the panel's buttons into promptAction(action) and
 // recording starts into onRecordingStarted().
-function createCallDetection({ detector, notify, startRecording, stopRecording, track, isCapturing, prompt = null, onPromptClosed = () => {}, onPrompted = () => {}, onFallback = () => {}, clock = { now: Date.now, setTimeout, clearTimeout } }) {
+function createCallDetection({ detector, notify, startRecording, stopRecording, track, isCapturing, prompt = null, onPromptClosed = () => {}, onPrompted = () => {}, onFallback = () => {}, onCallLive = () => {}, clock = { now: Date.now, setTimeout, clearTimeout } }) {
   let micOnAt = null;
   // Bumped on every mic-on and mic-off: a mic-on check that finishes under a
   // different token is stale (the mic went off meanwhile) and is dropped.
@@ -29,6 +29,15 @@ function createCallDetection({ detector, notify, startRecording, stopRecording, 
   });
   let promptState = initialPromptState();
   let currentCall = null;
+  // A Call is live from the moment any signal finds one until it ends,
+  // whether or not it is offered or recorded (main holds processing on a
+  // Mac short of memory while one is live).
+  let callLive = false;
+  function setCallLive(value) {
+    if (callLive === value) return;
+    callLive = value;
+    try { onCallLive(value); } catch (err) { console.warn('[call-detect] onCallLive failed:', err && err.message); }
+  }
   // The capturing Recording was started from a Call notification (click or
   // action), so the poll seeing that Call end may stop it.
   let startedFromCall = false;
@@ -104,6 +113,7 @@ function createCallDetection({ detector, notify, startRecording, stopRecording, 
 
   function detected(call, signal) {
     followup.stop(); // a live Call found by any signal ends the follow-up
+    setCallLive(true);
     if (promptState.phase !== 'idle' || isCapturing()) return;
     currentCall = call;
     const secondsFromMicOn = micOnAt === null ? null : Math.round((clock.now() - micOnAt) / 1000);
@@ -144,6 +154,7 @@ function createCallDetection({ detector, notify, startRecording, stopRecording, 
   // Recording started from the tray or floater outlives a Call it overlaps.
   function ended(reason) {
     micOnAt = null; // a later Call is not timed from a mic-on that preceded this one
+    setCallLive(false);
     step({ type: 'call-ended' });
     const fromCall = startedFromCall;
     startedFromCall = false;
@@ -162,7 +173,7 @@ function createCallDetection({ detector, notify, startRecording, stopRecording, 
     });
   }
 
-  return { start, onMicOn, onMicOff, promptAction, onRecordingStarted };
+  return { start, onMicOn, onMicOff, promptAction, onRecordingStarted, isCallLive: () => callLive };
 }
 
 module.exports = { createCallDetection };

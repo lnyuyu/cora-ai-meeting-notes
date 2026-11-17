@@ -306,3 +306,15 @@ test('back-to-back meetings are both processed, in order, after the second ends'
   assert.deepEqual(archive.calls, [first, second]);
   assert.deepEqual(api.named('processRecording').map((c) => c[1]), [first, second]);
 });
+
+const { shouldDeferProcessing } = require('../../src/recording/processing-queue');
+
+test('the queue waits while capturing or quitting; under 16 GB also while a Call is live', () => {
+  const GB = 2 ** 30;
+  assert.equal(shouldDeferProcessing({ phase: 'recording', totalMemBytes: 64 * GB }), true);
+  assert.equal(shouldDeferProcessing({ quitting: true }), true);
+  assert.equal(shouldDeferProcessing({ phase: 'idle', totalMemBytes: 8 * GB, callLive: true }), true);
+  assert.equal(shouldDeferProcessing({ phase: 'idle', totalMemBytes: 8 * GB, callLive: false }), false);
+  assert.equal(shouldDeferProcessing({ phase: 'idle', totalMemBytes: 16 * GB, callLive: true }), false);
+  assert.equal(shouldDeferProcessing({ phase: 'paused', totalMemBytes: 32 * GB, callLive: true }), false);
+});

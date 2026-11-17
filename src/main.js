@@ -15,7 +15,7 @@ const { createCallDetection } = require('./main/call-detection');
 const { createDetectHint } = require('./main/detect-hint');
 const { createCaptureHelperFactory, listAudioDevices, startMicWatch } = require('./recording/capture-helper');
 const { createRecordingSession } = require('./recording/session');
-const { createProcessingQueue } = require('./recording/processing-queue');
+const { createProcessingQueue, shouldDeferProcessing } = require('./recording/processing-queue');
 const { createBackendApi, createArchiveStep } = require('./recording/backend');
 const { buildInfoEnv } = require('./build-info');
 const os = require('os');
@@ -433,10 +433,17 @@ function publishState() {
 
 let lastPhase = 'idle';
 let isQuitting = false;
+let callLive = false;
+// Heavy processing (MLX) waits while a meeting is being captured, nothing new
+// starts once Cora is quitting, and under 16 GB nothing starts while any Call
+// is live (processing-queue.js shouldDeferProcessing).
+function updateProcessingDeferral() {
+  processingQueue.setDeferred(shouldDeferProcessing({
+    quitting: isQuitting, phase: recording.state().phase, totalMemBytes: os.totalmem(), callLive,
+  }));
+}
 recording.on('state', (s) => {
-  // Heavy processing (MLX) waits while a meeting is being captured, and
-  // nothing new starts once Cora is quitting.
-  processingQueue.setDeferred(isQuitting || s.phase === 'recording');
+  updateProcessingDeferral();
   if (s.phase === 'recording' && lastPhase !== 'recording') {
     onCaptureStarted(s);
   }
@@ -781,6 +788,7 @@ const callDetection = createCallDetection({
   isCapturing,
   prompt: { show: showCallPrompt, hide: hideCallPrompt },
   onFallback: detectHint.onFallback,
+  onCallLive: (live) => { callLive = live; updateProcessingDeferral(); },
 });
 
 handleTrusted('call-prompt-action', (_event, action) => callDetection.promptAction(action));

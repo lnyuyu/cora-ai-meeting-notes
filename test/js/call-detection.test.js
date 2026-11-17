@@ -11,7 +11,7 @@ const { fakeClock } = require('./fakes');
 
 const MEET = { label: 'Google Meet', source: 'browser', url: 'https://meet.google.com/abc-defg-hij', confirmed: true, unanswered: [] };
 
-function harness({ checkOnce = async () => null, check = null, capturing = false, clock = fakeClock(), onPrompted, prompt } = {}) {
+function harness({ checkOnce = async () => null, check = null, capturing = false, clock = fakeClock(), onPrompted, prompt, onCallLive } = {}) {
   const log = [];
   const shown = [];
   const started = [];
@@ -47,6 +47,7 @@ function harness({ checkOnce = async () => null, check = null, capturing = false
     clock,
     onPrompted,
     prompt,
+    onCallLive,
   });
   return { cd, clock, log, shown, started, stopped, state, watcher: () => watcher, lastNotification: () => last };
 }
@@ -385,4 +386,21 @@ test('follow-up: asks with the 2.5s tick budget, and does not run while a Record
   const c = harness({ capturing: true, check: async () => EMPTY });
   await c.cd.onMicOn();
   assert.equal(c.clock.pendingTimers(), 0);
+});
+
+// Under 16 GB main holds the Processing queue while a Call is live (also when
+// it is not being recorded), so processing never competes with the call.
+test('onCallLive reports a Call found, recorded or not, and its end', async () => {
+  const live = [];
+  const h = harness({ checkOnce: async () => MEET, onCallLive: (v) => live.push(v) });
+  h.cd.start();
+  h.watcher().onDetected(MEET);
+  h.watcher().onDetected(MEET);
+  assert.equal(h.cd.isCallLive(), true);
+  h.watcher().onEnded();
+  assert.equal(h.cd.isCallLive(), false);
+  h.state.capturing = true;
+  h.watcher().onDetected(MEET);  // a Call while capturing is still a live Call
+  await h.cd.onMicOff();
+  assert.deepEqual(live, [true, false, true, false]);
 });

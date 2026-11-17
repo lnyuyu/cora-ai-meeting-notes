@@ -205,4 +205,15 @@ function createProcessingQueue({ archive, api, clock, retryDelaysMs = [5000, 300
   };
 }
 
-module.exports = { createProcessingQueue, EXIT_USAGE, EXIT_DATA_ERR, EXIT_NO_INPUT, EXIT_TEMP_FAIL };
+// When main holds the queue: always while a Recording is capturing (GPU
+// contention) or Cora is quitting; on a Mac under 16 GB also while any Call
+// is live, recorded or not, so transcription never competes with the call for
+// memory (an 8 GB Mac froze processing during a call, 2026-11-13). A job step
+// already running finishes; the next one starts when the Call ends.
+const LOW_MEMORY_BYTES = 16 * 2 ** 30;
+function shouldDeferProcessing({ quitting = false, phase = 'idle', totalMemBytes = Infinity, callLive = false } = {}) {
+  if (quitting || phase === 'recording') return true;
+  return totalMemBytes < LOW_MEMORY_BYTES && Boolean(callLive);
+}
+
+module.exports = { shouldDeferProcessing, createProcessingQueue, EXIT_USAGE, EXIT_DATA_ERR, EXIT_NO_INPUT, EXIT_TEMP_FAIL };
