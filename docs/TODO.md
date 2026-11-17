@@ -52,6 +52,14 @@ Collected from testers on the 0.4.4 pre-release. More to come from today's users
 
 Tests: the rule's table (8/16/18/24/64 GB, arm64 vs Intel); onboarding preselects the recommended card; a team build with 8 GB lands on Cloud and with 64 GB on Local · Thorough.
 
+### Cloud processing freezes and crashes an 8 GB Mac at ~40%
+
+**Observed.** A teammate on an M2 Pro with 8 GB RAM / 256 GB disk, Processing mode Cloud (Gemini, not local): processing reaches about 40%, the whole Mac starts lagging, then Cora and the browser both crash. Repeatedly, on 0.4.3. His Install does not appear in the receiver's events (no M2 Pro 8 GB `app_started`), so either usage sharing is off or the crash happens before upload; we have no logs yet.
+
+**Cause (not yet confirmed).** 15 to 40% is the transcription step (`runner.py` writes 15 + 25 x part progress), so the pressure is in the cloud ASR path, not notes. Candidates to check with his logs: `find_speech_segments` decoding the whole recording into memory, FLAC clip extraction for `WORKERS = 3` windows at once, the context/screenshot block per window, and the local Whisper fallback (`transcriber.local_fallback`; only loads if a local model was downloaded). Electron, the Python server and a browser in a call already use most of 8 GB.
+
+**Fix.** (1) Get his logs (Settings > Send logs) and the processing log for one failed run; measure peak RSS of the Python server on a 60-minute recording. (2) On under 16 GB: 1 ASR worker, stream audio instead of decoding it whole, never load the local fallback. (3) Process after the call ends and pause while another call is live. (4) Folds into the "recommend by this Mac" entry above: Cloud alone is not enough on 8 GB until (2) lands.
+
 ### Seen alongside (not bugs, worth knowing)
 
 - The tester's Mac processes locally (`local_light`, whisper-small) rather than the team's Cloud default, so transcript and name quality from it is not comparable with Cloud users.
