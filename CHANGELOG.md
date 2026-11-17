@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.5 — 2026-11-13
+
+- Recordings no longer ask "Identify me": Cora records your microphone on its own track, so it already knows which speaker is you. Processing now writes that down (`identity` from the mic track), and Recordings made earlier get it once on the first start of 0.4.5. Only an imported single-track recording still asks, now as "Which speaker is you?" with a speaker picker on the Recording.
+- A call recorded with no participant names while Accessibility is off now says so on the Recording ("Cora couldn't see who was in this call") with a button to System Settings > Accessibility, instead of failing silently.
+- Settings > Beta: a general message can be sent without a thumbs up or down (sent with no rating). The thumbs-down-with-reason on a Recording is unchanged.
+- Processing mode is recommended for your Mac: Local · Thorough at 24 GB of memory or more, Local · Light at 16 to 23 GB, Cloud under 16 GB or on an Intel Mac. Onboarding's last step ("Processing & privacy") shows three cards with the recommended one preselected and marked "Best for this Mac"; a mode the Mac cannot run is greyed with the reason, the local model lists appear only after a local card, and the Gemini key step only after Cloud. Under 16 GB a yellow banner in onboarding and Settings > Processing says Cloud is recommended, and choosing a mode that may be slow asks once to confirm. Team builds follow the recommendation instead of always defaulting to Cloud.
+- Cloud processing on a Mac with less than 16 GB no longer loads the local Whisper model for a stretch Gemini's transcript failed on (it froze an 8 GB Mac): the stretch is left as a marked gap and the Recording offers "Process in the cloud". A Gemini turn ending a few seconds past its window (up to 5 s, or 3% of a long window) is clamped instead of rejected. Under 16 GB, processing waits while a call is live and starts when it ends.
+- A Recording processed on this Mac in a mode that may be slow here, and that failed or took longer than the call, offers once to be processed in the cloud. Nothing is ever sent to the cloud without that click.
+- Usage events: `app_started` carries `recommended_mode`; `processing_finished` counts which cloud transcript check rejected an attempt (`asr_coverage`, `asr_outside_window`, ...) and how many turns were clamped (`asr_clamped`); a general `feedback` message may have `rating: null`. Counts only; listed in `docs/TRACING.md`.
+
 ## 0.4.4 — 2026-11-13
 
 - New note: a button at the top of the sidebar (and ⌘N) starts a Recording from the Cora window and opens it with the cursor in the Notepad. While a Recording is live or paused it reads "Go to live note". Until now you could only start from the menu bar icon or the call prompt.
