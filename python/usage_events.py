@@ -17,7 +17,7 @@ from pathlib import Path
 import db
 
 MAX_STRING = 200
-LONG_STRINGS = {("feedback", "comment"): 500}
+LONG_STRINGS = {("feedback", "comment"): 500, ("crash_report", "frames"): 500}
 QUEUE_MAX_AGE_DAYS = 7
 QUEUE_MAX_BYTES = 5_000_000
 
@@ -65,6 +65,7 @@ CATALOG: dict[str, frozenset[str]] = {name: frozenset(keys.split()) for name, ke
     "ui_action_count": "day action kind count",
     "search_used": "where",
     "model_downloaded": "kind model size_mb seconds outcome",
+    "crash_report": "process exception_type signal termination_reason frames",
     "speaker_linked": "source",
 }.items()}
 

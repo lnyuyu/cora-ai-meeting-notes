@@ -5,15 +5,17 @@ What we need so a failure on a teammate's or a customer's Mac can be read from t
 ## Principles
 
 - **The app explains itself before it asks for help.** Every failure the app can detect maps to a message that names the fix ("Screen Recording is off"), never a code.
-- **Metadata by default, content on request.** Usage events (already shipped) carry codes, signals, permission states and versions. Logs and audio leave the Mac only through an explicit Send diagnostics or a Feedback rating (see `docs/BETA_POLICY.md`).
+- **Metadata by default, content on request.** Usage events (already shipped) carry codes, signals, permission states, versions and performance numbers (CPU, memory, stage times). Logs and audio leave the Mac only through an explicit Send diagnostics or a Feedback rating (see `docs/BETA_POLICY.md`).
 - **One place to look.** Everything lands in the receiver root on the Studio; `tools/usage_report.py` is the daily view.
 
 ## Layer 1: make failures self-describing (ship first)
 
 1. **Signal and stderr for every helper death.** Capture stderr of `dual-capture` into the per-recording log; put the signal into the warning and into the `error {scope: capture}` event (`helper_killed_SIGABRT`, `helper_killed_SIGKILL`). SIGABRT means a Swift or TCC abort, SIGKILL means code signing or the OS.
-2. **Permission snapshot in events.** `recording_started` and `app_started` carry `{mic, screen, accessibility, automation}` from the existing `get-permission-status` IPC. Most first-day failures are grants.
+2. **Permission snapshot in events.** Shipped in 0.4.5: `recording_started` and `app_started` carry `perm_mic`, `perm_screen`, `perm_accessibility`, `perm_automation` (granted/denied/unknown) from the same status as the `get-permission-status` IPC. Most first-day failures are grants. Still open: automation (Apple Events to the browsers) has no status API that does not prompt, so it reads `unknown`; a probe could report it from the detector's `-1743` errors.
 3. **Preflight before recording.** `dual-capture --preflight` opens the mic and ScreenCaptureKit for one second and exits with a specific code. The session runs it first and shows the matching message; the real helper only starts when preflight passes.
-4. **Crash reports of our binaries.** On app start, look in `~/Library/Logs/DiagnosticReports` for `dual-capture-*`, `speaker-watch-*`, `mic-watch-*` and `Cora*` reports newer than the last check; emit one `crash_report` event per report with exception type, signal, termination reason and the top five frames (no paths beyond the bundle, no user data). Electron main and renderer crashes: `crashReporter.start({ submitURL: <receiver>/v1/crashes })` is a two-line add; the receiver stores the minidump beside the install's events.
+4. **Crash reports of our binaries.** Shipped in 0.4.5 (`python/crash_reports.py`): at server start Cora reads `~/Library/Logs/DiagnosticReports` for `.ips` reports of `dual-capture`, `speaker-watch`, `mic-watch`, `mac-ocr`, the Cora app and its helpers (main, renderer and GPU crashes included, since macOS writes those too) and our bundled Python, newer than the last check, and emits one `crash_report` event per report: process, exception type, signal, termination reason and up to five symbol names from our own binaries. No paths, addresses or anything else from the report.
+
+   **Decision: no Electron `crashReporter` / minidump upload.** A minidump holds a slice of process memory, which in Cora can contain transcript text, notes or people's names. Sending it would break the beta policy (metadata by default, content only on the user's click) and the controls under the ongoing SOC 2 audit. The `.ips` reduction above covers what we need to triage; a minidump is only ever looked at on the user's own Mac or sent through an explicit Send diagnostics.
 
 ## Layer 2: send diagnostics on request
 

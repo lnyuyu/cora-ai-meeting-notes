@@ -58,6 +58,7 @@ def main() -> None:
     usage_events.seed_display_name()  # beta builds, once: name teammates who onboarded before 0.4.4
     import threading
     threading.Thread(target=_backfill_identity, name="identity-backfill", daemon=True).start()
+    threading.Thread(target=_scan_crash_reports, name="crash-reports", daemon=True).start()
     import beta_sender
     # The port is bound; the daily people_snapshot (a walk of the Recordings
     # folder), the config fetch and the first flush all run on its thread.
@@ -72,6 +73,18 @@ def main() -> None:
         server.server_close()
         audio_pruning.stop()
         beta_sender.stop(final_flush=True)
+
+
+def _scan_crash_reports() -> None:
+    """Our processes' macOS crash reports since the last check, as
+    crash_report Usage events (python/crash_reports.py)."""
+    try:
+        import crash_reports
+        found = crash_reports.scan()
+        if found:
+            print(f"[crash_reports] {found} crash report(s) recorded", flush=True)
+    except Exception as e:  # noqa: BLE001 - never stops the server
+        print(f"[crash_reports] scan failed: {type(e).__name__}: {e}", flush=True)
 
 
 def _backfill_identity() -> None:
