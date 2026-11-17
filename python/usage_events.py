@@ -61,6 +61,7 @@ CATALOG: dict[str, frozenset[str]] = {name: frozenset(keys.split()) for name, ke
     "ui_activity": "day active_min doing browsing",
     "ui_action_count": "day action kind count",
     "search_used": "where",
+    "model_downloaded": "kind model size_mb seconds outcome",
     "speaker_linked": "source",
 }.items()}
 

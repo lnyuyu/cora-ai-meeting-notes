@@ -93,6 +93,7 @@ Keys may be missing; extra keys may not.
 | `tour_closed` | `slide` (1-based, where it was closed), `slides` (how many), `outcome` (`done`, `skip`) | renderer (`js/tour.js`) |
 | `ui_activity` | `day` (local `YYYY-MM-DD`), `active_min`, `doing` (Effort), `browsing` | `python/activity.py`, once per Install per local day, after the day ends (below) |
 | `ui_action_count` | `day`, `action` (an id from `activity.ACTIONS`), `kind` (`doing`\|`browsing`), `count` | `python/activity.py`, with that day's `ui_activity`: one per action used that day |
+| `model_downloaded` | `kind` (`whisper`\|`text`), `model` (the public Hugging Face repo id), `size_mb`, `seconds`, `outcome` (`ok`\|`error`) | `python/download_manager.py`, once per model download from Settings or the startup prompt; no error text |
 | `search_used` | `where` (`meetings`: the sidebar search, once per Enter or leaving the box with text; `transcript`: the search bar in a meeting, once per opening) | renderer; never the query |
 | `speaker_linked` | `source` (`participants`: an existing Person chosen; `participants_new_person`: a new Person created and linked) | Participants tab |
 
