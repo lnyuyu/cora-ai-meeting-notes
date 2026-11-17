@@ -242,3 +242,31 @@ scenario(async () => {
   assert.equal(node('#settingsFeedbackSend').disabled, true);
 });
 ''')
+
+
+@needs_node
+def test_a_general_message_needs_no_rating_and_sends_rating_null(tmp_path):
+    run_node(tmp_path, r'''
+scenario(async () => {
+  node('#settingsFeedbackMessage').value = 'The call prompt came late today';
+  await fire('#settingsFeedbackMessage', 'input');
+  assert.equal(node('#settingsFeedbackSend').disabled, false, 'words alone are enough');
+  await fire('#settingsFeedbackSend');
+  assert.deepEqual(posted(), [{recording_id: null, target: 'overall', rating: null, reasons: [],
+                               comment: 'The call prompt came late today'}]);
+});
+''')
+
+
+@needs_node
+def test_clicking_the_chosen_general_thumb_again_clears_it(tmp_path):
+    run_node(tmp_path, r'''
+scenario(async () => {
+  await fire('generalRating:up');
+  await fire('generalRating:up');
+  node('#settingsFeedbackMessage').value = 'Just a note';
+  await fire('#settingsFeedbackMessage', 'input');
+  await fire('#settingsFeedbackSend');
+  assert.equal(posted()[0].rating, null);
+});
+''')

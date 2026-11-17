@@ -193,19 +193,39 @@ def init_db():
         ''')
 
         # Feedback (beta): a thumbs up/down on a Recording, its notes, or Cora
-        # overall (recording_id NULL for the Settings general message);
+        # overall (recording_id NULL for the Settings general message, whose
+        # rating may be NULL);
         # reasons is a JSON list. See python/api/routes/beta.py.
         conn.execute('''
             CREATE TABLE IF NOT EXISTS feedback (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 recording_id TEXT,
                 target TEXT NOT NULL,
-                rating TEXT NOT NULL,
+                rating TEXT,
                 reasons TEXT NOT NULL DEFAULT '[]',
                 comment TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL
             )
         ''')
+        # 0.4.5: a general message may have no rating. Tables made before
+        # then declared rating NOT NULL; SQLite cannot drop a constraint in
+        # place, so copy the rows into a table without it.
+        if any(c[1] == "rating" and c[3] for c in conn.execute("PRAGMA table_info(feedback)").fetchall()):
+            conn.executescript('''
+                ALTER TABLE feedback RENAME TO feedback_rating_required;
+                CREATE TABLE feedback (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    recording_id TEXT,
+                    target TEXT NOT NULL,
+                    rating TEXT,
+                    reasons TEXT NOT NULL DEFAULT '[]',
+                    comment TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL
+                );
+                INSERT INTO feedback (id, recording_id, target, rating, reasons, comment, created_at)
+                    SELECT id, recording_id, target, rating, reasons, comment, created_at FROM feedback_rating_required;
+                DROP TABLE feedback_rating_required;
+            ''')
         conn.commit()
 
 

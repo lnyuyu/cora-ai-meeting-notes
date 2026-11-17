@@ -80,7 +80,7 @@ Keys may be missing; extra keys may not.
 | `setting_changed` | `key`, `value` | renderer `saveSetting`: keys matching key/token/secret/password are never sent; Microphone is `default`\|`named`; booleans and numbers as strings; a few choice keys (`processing_mode`, model and engine choices) verbatim; any other text only `set`\|`cleared` |
 | `people_snapshot` | `people`, `recordings`, `disk_mb` | server start, at most once per 24 h |
 | `error` | `scope` (`main`\|`capture`\|`server`\|`pipeline`), `code` | Recording session (`capture`); API router, unhandled route exceptions (`server`, code = exception class name) |
-| `feedback` | `recording_id`, `target` (`recording`\|`notes`\|`overall`), `rating` (`up`\|`down`), `reasons` (comma-joined), `comment` (≤ 500) | `POST /api/feedback` |
+| `feedback` | `recording_id`, `target` (`recording`\|`notes`\|`overall`), `rating` (`up`\|`down`, or null for a general message sent without one), `reasons` (comma-joined), `comment` (≤ 500) | `POST /api/feedback` |
 | `events_dropped` | `count` | queue limits (below) |
 | `capture_dropped` | `recording_id`, `reason` (`feedback`\|`sample`) | a Captured Recording not uploaded within 7 days |
 | `update_available` | `from_version`, `to_version` | `src/updater.js`, once per new version seen |

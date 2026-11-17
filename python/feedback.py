@@ -2,7 +2,8 @@
 
 A teammate's thumbs up or down on a Recording, on its notes, or on Cora
 overall, with optional reasons and a short comment. The Settings general
-message is the same thing with no Recording and target `overall`. Each one
+message is the same thing with no Recording and target `overall`, and its
+rating is optional (null) as long as it has words. Each one
 is stored in the local `feedback` table, recorded as a `feedback` Usage
 event, asks for the Recording to be captured, and wakes the sender.
 """
@@ -27,8 +28,10 @@ def _validated(recording_id, target, rating, reasons, comment) -> tuple:
         raise ValueError("recording_id must be a string or null")
     if target not in TARGETS:
         raise ValueError(f"target must be one of {TARGETS}")
-    if rating not in RATINGS:
+    if rating is not None and rating not in RATINGS:
         raise ValueError(f"rating must be one of {RATINGS}")
+    if rating is None and (recording_id or target != "overall"):
+        raise ValueError(f"rating must be one of {RATINGS} (only a general message may leave it out)")
     reasons = [] if reasons is None else reasons
     if not isinstance(reasons, list) or any(r not in REASONS for r in reasons):
         raise ValueError(f"reasons must be a list drawn from {REASONS}")
@@ -39,6 +42,8 @@ def _validated(recording_id, target, rating, reasons, comment) -> tuple:
     comment = comment.strip()
     if len(comment) > MAX_COMMENT:
         raise ValueError(f"comment longer than {MAX_COMMENT} characters")
+    if rating is None and not comment:
+        raise ValueError("a general message without a rating needs a comment")
     return recording_id or None, target, rating, reasons, comment
 
 

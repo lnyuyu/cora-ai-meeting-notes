@@ -99,6 +99,45 @@ def test_with_sharing_off_the_rating_is_kept_locally_and_nothing_is_captured(cle
     assert not capture.has_pending(RECORDING)
 
 
+def test_a_general_message_may_have_no_rating(clean, port):
+    status, reply = api(port, "POST", "/api/feedback", {
+        "recording_id": None, "target": "overall", "rating": None, "reasons": [],
+        "comment": "Export to Notion would help"})
+
+    assert status == 200 and reply["ok"] is True
+    [row] = feedback_rows()
+    assert (row["recording_id"], row["target"], row["rating"]) == (None, "overall", None)
+    assert feedback_events() == [{"recording_id": None, "target": "overall", "rating": None, "reasons": "",
+                                  "comment": "Export to Notion would help"}]
+
+
+@pytest.mark.parametrize("body, complaint", [
+    ({"recording_id": None, "target": "overall", "rating": None, "comment": ""}, "comment"),
+    ({"recording_id": RECORDING, "target": "notes", "rating": None, "comment": "words"}, "rating"),
+])
+def test_without_a_rating_only_a_general_message_with_words_is_accepted(clean, port, body, complaint):
+    status, reply = api(port, "POST", "/api/feedback", body)
+    assert status == 400 and complaint in reply["error"]
+    assert feedback_rows() == []
+
+
+def test_an_old_feedback_table_with_a_required_rating_is_migrated(clean):
+    import db
+    with db.get_db() as conn:
+        conn.execute("DROP TABLE feedback")
+        conn.execute("CREATE TABLE feedback (id INTEGER PRIMARY KEY AUTOINCREMENT, recording_id TEXT,"
+                     " target TEXT NOT NULL, rating TEXT NOT NULL, reasons TEXT NOT NULL DEFAULT '[]',"
+                     " comment TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL)")
+        conn.execute("INSERT INTO feedback (target, rating, created_at) VALUES ('overall', 'up', 'then')")
+        conn.commit()
+    db.init_db()
+    with db.get_db() as conn:
+        notnull = {r["name"]: r["notnull"] for r in conn.execute("PRAGMA table_info(feedback)")}
+        rows = [dict(r) for r in conn.execute("SELECT target, rating FROM feedback")]
+    assert notnull["rating"] == 0
+    assert rows == [{"target": "overall", "rating": "up"}]
+
+
 VALID = {"recording_id": RECORDING, "target": "notes", "rating": "down", "reasons": ["missed_items"], "comment": ""}
 
 

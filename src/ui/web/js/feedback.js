@@ -102,11 +102,14 @@ const generalFeedback = { rating: null, sending: false };
 function renderGeneralFeedback(){
   $$('[data-general-rating]').forEach(b => pressed(b, b.dataset.generalRating === generalFeedback.rating));
   const message = $('#settingsFeedbackMessage').value.trim();
-  $('#settingsFeedbackSend').disabled = generalFeedback.sending || !generalFeedback.rating || !message;
+  // The thumbs are optional here: words alone are a message (rating null).
+  $('#settingsFeedbackSend').disabled = generalFeedback.sending || !message;
 }
 
 $$('[data-general-rating]').forEach(b => b.addEventListener('click', () => {
-  generalFeedback.rating = b.dataset.generalRating; renderGeneralFeedback();
+  // Clicking the chosen thumb again clears it.
+  generalFeedback.rating = generalFeedback.rating === b.dataset.generalRating ? null : b.dataset.generalRating;
+  renderGeneralFeedback();
 }));
 $('#settingsFeedbackMessage')?.addEventListener('input', () => {
   capComment($('#settingsFeedbackMessage'), $('#settingsFeedbackCount'));
@@ -115,7 +118,7 @@ $('#settingsFeedbackMessage')?.addEventListener('input', () => {
 $('#settingsFeedbackSend')?.addEventListener('click', async () => {
   const field = $('#settingsFeedbackMessage');
   const comment = field.value.trim();
-  if(!generalFeedback.rating || !comment || generalFeedback.sending) return;
+  if(!comment || generalFeedback.sending) return;
   generalFeedback.sending = true;
   renderGeneralFeedback();
   try{
