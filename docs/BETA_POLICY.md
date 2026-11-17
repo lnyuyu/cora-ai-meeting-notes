@@ -1,6 +1,6 @@
 # Cora beta: what is shared
 
-Last updated: 2026-11-11. This policy applies to the **internal beta only** (team builds of Cora
+Last updated: 2026-11-13. This policy applies to the **internal beta only** (team builds of Cora
 0.4.0 and later). It will be rewritten before anyone outside the team gets a build.
 
 During the beta Cora sends usage data and some full recordings to the Cora team to check accuracy.
@@ -16,7 +16,19 @@ like a key, token or password is not reported at all; any other free-text settin
 only as "set" or "cleared". Once a day, Cora also sends how many minutes you were actively
 using its window and how many times you did each kind of thing (for example "renamed a meeting
 3 times", "opened a recording 12 times"): action names and counts only, never what you typed,
-searched for or opened. The full list of events and fields is in `docs/TRACING.md`
+searched for or opened.
+
+Since 0.4.5 usage events also describe how Cora performs on your Mac, so we can make it faster
+and lighter: for each processing run, CPU seconds, seconds per step, how long it waited in the
+queue, how long loading a local model took, and the Mac's state meanwhile (free memory, swap,
+memory pressure, whether it was hot or on battery, and whether a call was live); while you
+record, how much CPU and memory Cora's own processes used; which macOS permissions Cora has
+(microphone, screen recording, Accessibility: granted or not); each local model download (its
+public model name, size, time); and, when one of Cora's own processes crashed, the crash type
+and up to five function names from Cora's own code. Crash reports are read on this Mac and
+reduced to those fields: no file paths, no memory contents and nothing else from the report is
+sent. Cora does not use Electron's crash uploader, which would send process memory. The full
+list of events and fields is in `docs/TRACING.md`
 ("Usage events (beta)"); Cora refuses to store an event or field that is not on that list.
 
 Each batch is labelled with this Install's random id (made once on this Mac, never your email or
