@@ -2,6 +2,38 @@
 
 Diagnosed, not yet fixed. Each entry says what was observed, the cause found in the code or logs, and the fix we expect. Dated so the evidence can be re-checked.
 
+## 0.4.4 pre-release feedback (2026-11-13): fix in 0.4.5
+
+Collected from testers on the 0.4.4 pre-release. More to come from today's users; add them here.
+
+### "Identify me" shows on every new Recording
+
+**Observed.** Every Recording in the list carries an "Identify me" pill; the tester did not know what it meant (feedback event, Install `37147905`, 0.4.4 team build).
+
+**Cause.** `recording_stage.stage()` returns `needs_speaker_confirmation` whenever `identity.speaker_id` is missing. Only the legacy paths in `diarization.py` write `identity`: manual `confirm_speaker`, and the old Gemini diarization voice-match auto-pilot (which also needs a Person with `is_self`). The current pipeline already knows who you are from capture: `pipeline/speakers.py` labels the mic track (track 0) "You" and the system track as the others. It never writes `identity`, so every Recording it processes fails the check. The stage only gated Coaching, which moved to v1.1.
+
+**Fix.** (1) The pipeline writes `identity` from the mic track (`confirmation_source: "mic_track"`) so export, MCP and a later Coaching agree on "You". (2) `stage()` no longer returns `needs_speaker_confirmation` for dual-track Recordings; keep it only for single-track imports, labelled "Which speaker is you?" and opening the speaker picker. (3) One-time backfill of `identity` for existing dual-track Recordings. Test: a dual-track Recording reaches "Ready" with no confirmation.
+
+### Slack desktop huddle recorded with no participant names, silently
+
+**Observed.** A 25-minute Slack desktop huddle (started from the call prompt) ended with `participants_captured {count: 0, method: accessibility}`; notes had no names.
+
+**Cause.** Accessibility is not granted to the 0.4.4 app on that Mac: `detect_fallback {reason: ax_untrusted}` at launch. Slack desktop names come only through Accessibility. A new build can lose the earlier grant (same root as the 2026-11-11 `AXError -25211` entry below).
+
+**Fix.** User side: System Settings > Privacy & Security > Accessibility, remove and re-add Cora. Product: when a Recording ends with zero participants and Accessibility is untrusted, say so on the Recording ("Cora couldn't see who was in this call: grant Accessibility") with a button to the pane, instead of failing silently. Also check after each update that the designated requirement still matches so grants survive.
+
+### General feedback can't be sent without a thumbs up/down
+
+**Observed.** Settings > Beta: the tester could not send a written message without first picking a rating.
+
+**Cause.** By design in `src/ui/web/js/feedback.js` `renderGeneralFeedback()`: Send is disabled while `!generalFeedback.rating`; the click handler returns early on the same check.
+
+**Fix.** Make the rating optional for general feedback (send `rating: null`; receiver and dashboard accept it). The per-Recording thumbs-down that asks for a reason stays as is.
+
+### Seen alongside (not bugs, worth knowing)
+
+- The tester's Mac processes locally (`local_light`, whisper-small) rather than the team's Cloud default, so transcript and name quality from it is not comparable with Cloud users.
+
 ## Participants not updated when switching huddles mid-recording (2026-11-11)
 
 **Observed.** A recording began on a DM huddle (roster: one name, correct), the user left it and joined a second huddle with two more people while still recording; the roster stayed at one name.
