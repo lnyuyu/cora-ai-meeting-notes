@@ -40,7 +40,7 @@ THERMAL_ORDER = ("nominal", "warning", "throttled")
 
 KEYS = ("cpu_user_s", "cpu_sys_s", *(f"stage_{s}_s" for s in STAGES), "queue_wait_s",
         "sys_free_mb_start", "sys_free_mb_min", "sys_free_mb_at_peak", "swap_mb_start", "swap_mb_max",
-        "pressure_max", "thermal_max", "on_battery", "call_live")
+        "pressure_max", "thermal_max", "on_battery", "call_live", "peak_rss_mb")
 
 _call_live = False
 _current: Optional["RunMeter"] = None
@@ -212,6 +212,7 @@ class RunMeter:
         self._stop.set()
         if self._thread is not None:
             self._thread.join(timeout=1)
+            _safe(self.take_sample)  # one last sample so a peak right at the end is not missed
         self_now = resource.getrusage(resource.RUSAGE_SELF)
         kids_now = resource.getrusage(resource.RUSAGE_CHILDREN)
         self.cpu = {
@@ -226,6 +227,7 @@ class RunMeter:
                 out[f"stage_{stage}_s"] = round(self.stages[stage], 1) if stage in self.stages else None
         out["queue_wait_s"] = self.queue_wait_s
         out["call_live"] = self.call_live
+        out["peak_rss_mb"] = self._peak_rss if self._peak_rss >= 0 else None
         return {k: out.get(k) for k in KEYS}
 
 

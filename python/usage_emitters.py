@@ -46,7 +46,7 @@ def processing_finished(recording_id: str, profile: dict[str, Any], *, run_id: O
     where peak RSS falls back to the run row's). validation: how often each
     cloud transcript check fired (pipeline/asr_validate.py RULES, one per
     rejected attempt) and how many turns were clamped to their Window, as
-    asr_<rule> counts; None (all asr_* null) for an engine that validates
+    check_<rule> counts; None (all check_* null) for an engine that validates
     nothing or a run that failed before transcribing. perf: the run meter's
     flat payload (python/run_meter.py: CPU seconds, per-stage seconds, queue
     wait, system memory/swap/pressure/thermal/battery, Call live).
@@ -79,11 +79,12 @@ def processing_finished(recording_id: str, profile: dict[str, Any], *, run_id: O
             "speech_s": resource.get("speech_duration_seconds"),
             "silence_s": resource.get("silence_removed_seconds"),
             "retries": sum(1 for s in spans if s["status"] == "error"),
-            "peak_rss_mb": resource.get("peak_memory_mb") or run.get("peak_rss_mb"),
             "duration_s": resource.get("audio_duration_seconds"),
             **_asr_counts(validation),
             "model_load_s": _model_load_s(spans, profile),
             **_perf(perf),
+            # This run's sampled peak; the older figures are the server's lifetime high-water mark.
+            "peak_rss_mb": (perf or {}).get("peak_rss_mb") or resource.get("peak_memory_mb") or run.get("peak_rss_mb"),
         })
     except Exception as exc:  # never let telemetry break processing
         _warn("processing_finished", exc)
@@ -105,7 +106,7 @@ def _perf(perf: Optional[dict[str, Any]]) -> dict[str, Any]:
 
 def _asr_counts(validation: Optional[dict[str, int]]) -> dict[str, Optional[int]]:
     from pipeline.asr_validate import RULES
-    return {f"asr_{rule}": (None if validation is None else int(validation.get(rule, 0)))
+    return {f"check_{rule}": (None if validation is None else int(validation.get(rule, 0)))
             for rule in (*RULES, "clamped")}
 
 

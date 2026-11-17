@@ -20,7 +20,7 @@ What 0.4.5 left open from this feedback:
 
 ### Cloud processing on an 8 GB Mac: confirm with the teammate's logs
 
-0.4.5: no local fallback in Cloud mode under 16 GB (gap + "Process in the cloud"), turns overshooting a Window by up to max(5 s, 3%) are clamped, `processing_finished` counts which `asr_validate` rule fired (`asr_*`), and under 16 GB processing waits while a Call is live. **Still open:** get the teammate's logs (Settings > Send logs) to confirm which path his Mac took, then tune `asr_validate` from the `asr_*` counts. A job step already running when a Call starts still finishes (the queue cannot pause a running Python job).
+0.4.5: no local fallback in Cloud mode under 16 GB (gap + "Process in the cloud"), turns overshooting a Window by up to max(5 s, 3%) are clamped, `processing_finished` counts which `asr_validate` rule fired (`check_*`), and under 16 GB processing waits while a Call is live. **Still open:** get the teammate's logs (Settings > Send logs) to confirm which path his Mac took, then tune `asr_validate` from the `check_*` counts. A job step already running when a Call starts still finishes (the queue cannot pause a running Python job).
 
 ### Seen alongside (not bugs, worth knowing)
 

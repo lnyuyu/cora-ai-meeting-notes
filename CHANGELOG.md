@@ -13,7 +13,7 @@
   - `recording_stopped` adds Cora's own CPU and memory while recording, sampled every 10 s (`app_cpu_avg`, `app_cpu_max`, `app_rss_max_mb`, `helpers_cpu_avg`, `helpers_rss_max_mb`, `python_rss_max_mb`).
   - `app_started` and `recording_started` add the permission snapshot (`perm_mic`, `perm_screen`, `perm_accessibility`, `perm_automation`).
   - New events: `model_downloaded` (kind, public model id, size, seconds, outcome), `crash_report` (process, exception type, signal, termination reason and up to five function names from Cora's own code, read from macOS crash reports on this Mac; no paths or memory), `search_used` and `speaker_linked`. Electron's crash uploader stays off: minidumps hold process memory.
-- Usage events: `app_started` carries `recommended_mode`; `processing_finished` counts which cloud transcript check rejected an attempt (`asr_coverage`, `asr_outside_window`, ...) and how many turns were clamped (`asr_clamped`); a general `feedback` message may have `rating: null`. Counts only; listed in `docs/TRACING.md`.
+- Usage events: `app_started` carries `recommended_mode`; `processing_finished` counts which cloud transcript check rejected an attempt (`check_coverage`, `check_outside_window`, ...) and how many turns were clamped (`check_clamped`); a general `feedback` message may have `rating: null`. Counts only; listed in `docs/TRACING.md`.
 
 ## 0.4.4 — 2026-11-13
 

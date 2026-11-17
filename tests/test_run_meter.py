@@ -61,6 +61,7 @@ def test_samples_keep_start_extremes_and_the_free_memory_at_the_rss_peak():
     assert (out["sys_free_mb_start"], out["sys_free_mb_min"], out["sys_free_mb_at_peak"]) == (4000, 900, 900)
     assert (out["swap_mb_start"], out["swap_mb_max"]) == (0, 2048)
     assert (out["pressure_max"], out["thermal_max"], out["on_battery"]) == ("critical", "throttled", True)
+    assert out["peak_rss_mb"] == 1900.0  # this run's own peak, not the server's lifetime high-water mark
 
 
 def test_a_failing_probe_leaves_its_key_null_and_never_raises():

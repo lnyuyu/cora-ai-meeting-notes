@@ -185,7 +185,7 @@ def test_processing_finished_counts_which_cloud_transcript_check_fired(
     runner.process_recording_local(folder, PROFILE)
 
     [event] = _events(tmp_path, "processing_finished")
-    assert (event["asr_coverage"], event["asr_clamped"], event["asr_outside_window"]) == (3, 2, 0)
+    assert (event["check_coverage"], event["check_clamped"], event["check_outside_window"]) == (3, 2, 0)
 
 
 def test_a_local_run_has_no_cloud_check_counts(tmp_path, monkeypatch, fake_text, fake_transcriber):
@@ -193,4 +193,4 @@ def test_a_local_run_has_no_cloud_check_counts(tmp_path, monkeypatch, fake_text,
     folder = _recording("beta-local", monkeypatch, fake_text, fake_transcriber)
     runner.process_recording_local(folder, PROFILE)
     [event] = _events(tmp_path, "processing_finished")
-    assert all(event[k] is None for k in event if k.startswith("asr_"))
+    assert all(event[k] is None for k in event if k.startswith("check_"))

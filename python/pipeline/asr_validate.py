@@ -31,7 +31,7 @@ LEAK_MARKERS = ("names and terms that may come up", "meeting title:", "attendees
 OVERSHOOT_S = 5.0
 OVERSHOOT_SHARE = 0.03
 
-# Rule names, for counting which check fired (processing_finished asr_* keys).
+# Rule names, for counting which check fired (processing_finished check_* keys).
 RULES = ("malformed", "timestamps", "outside_window", "runaway", "empty", "collapsed", "coverage", "other")
 
 
