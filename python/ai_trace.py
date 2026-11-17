@@ -344,7 +344,7 @@ def run_summary(run_id: Optional[str]) -> Optional[dict[str, Any]]:
         with _connect() as conn:
             conn.row_factory = sqlite3.Row
             run = conn.execute("SELECT duration_s, status, meta FROM runs WHERE id = ?", (run_id,)).fetchone()
-            spans = conn.execute("SELECT kind, provider, model, status, input_tokens, output_tokens FROM spans"
+            spans = conn.execute("SELECT kind, provider, model, status, input_tokens, output_tokens, duration_s FROM spans"
                                  " WHERE run_id = ? ORDER BY started_at", (run_id,)).fetchall()
     except Exception as exc:
         print(f"[ai_trace] run summary failed: {exc}", file=sys.stderr)

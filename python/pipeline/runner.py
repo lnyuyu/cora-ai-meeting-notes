@@ -97,26 +97,30 @@ def _archive_previous_outputs(folder: Path) -> None:
     print(f"[Local Pipeline] Archived previous outputs for {folder.name} to versions/{stamp}", flush=True)
 
 
-def process_recording_local(folder: Path, options: dict | None = None) -> dict[str, Any]:
+def process_recording_local(folder: Path, options: dict | None = None, run_info: dict | None = None) -> dict[str, Any]:
     """Process one Recording, then (lock released, trace run closed) run the
     after_meeting Hook and clean up source audio — see post_processing.finish.
     The result's `recording_id` is the Recording that now holds it: a merged
-    Continuation reports its parent."""
+    Continuation reports its parent. run_info: what Electron knows about this
+    run ({queue_wait_s, call_live}), for processing_finished only."""
     import post_processing
     import processing
     profile = processing.resolve(options)
     with processing.scope(profile, wait=options is None):
-        result = _process_recording_selected(folder, profile)
+        result = _process_recording_selected(folder, profile, run_info or {})
     source_audio = result.pop("source_audio")
     post_processing.finish(result["recording_id"], source_audio)
     return result
 
 
-def _process_recording_selected(folder: Path, profile: dict[str, Any]) -> dict[str, Any]:
+def _process_recording_selected(folder: Path, profile: dict[str, Any], run_info: dict | None = None) -> dict[str, Any]:
     """Complete end-to-end local processing: MLX Whisper + AX Speakers + OCR Slides + Qwen3-4B.
     Every run, ok or failed, ends with exactly one processing_finished Usage event."""
+    import run_meter
     import usage_emitters
+    run_info = run_info or {}
     started, run_id = time.time(), None
+    meter = run_meter.start(queue_wait_s=run_info.get("queue_wait_s"), call_live=bool(run_info.get("call_live")))
     try:
         audio_file = next((p for p in folder.iterdir() if p.is_file() and p.name.startswith("audio.")), None)
         if not audio_file:
@@ -130,10 +134,12 @@ def _process_recording_selected(folder: Path, profile: dict[str, Any]) -> dict[s
         code = _record_failure(folder, exc)
         _note_last_run(folder.name, profile, "failed", started)
         # The transcriber model comes from the run's traced transcription span, if it got that far.
-        usage_emitters.processing_finished(folder.name, profile, run_id=run_id, started=started, error_code=code)
+        usage_emitters.processing_finished(folder.name, profile, run_id=run_id, started=started, error_code=code,
+                                           perf=run_meter.finish(meter))
         raise
     usage = result.pop("usage", None) or {}
-    usage_emitters.processing_finished(result["recording_id"], profile, run_id=run_id, started=started, **usage)
+    usage_emitters.processing_finished(result["recording_id"], profile, run_id=run_id, started=started,
+                                       perf=run_meter.finish(meter), **usage)
     (folder / ".pipeline_progress.json").unlink(missing_ok=True)
     db.set_processing_failure(result["recording_id"], None)
     _note_last_run(result["recording_id"], profile, "ok", started)

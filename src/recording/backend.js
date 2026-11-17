@@ -48,16 +48,21 @@ function createBackendApi({ postJson, fetchJson }) {
     appendNote: (id, text) => postJson('/api/recording/notes/append', { id, text }),
     setTitle: (id, title) => postJson('/api/recording/title', { id, title }),
     // A notice shown on the Recording ('ax_untrusted'): python/api/routes/recordings.py.
+    // A Call became live or ended (processing_finished call_live).
+    setCallState: (live) => postJson('/api/call-state', { live: Boolean(live) }),
     setCaptureNotice: (id, notice) => postJson('/api/recording/capture-notice', { id, notice }),
     addLiveEntry: (entry) => postJson('/api/recording/live-entry', entry),
     // One Usage event (python/usage_events.py CATALOG); rejects on a 400.
     recordEvent: (name, payload) => postJson('/api/events', { name, payload }),
     // One counted action toward the day's Effort (python/activity.py ACTIONS).
     countAction: (action) => postJson('/api/activity', { action }),
-    processRecording: async (id) => {
+    // run.queueWaitS: seconds the job waited (processing_finished queue_wait_s).
+    processRecording: async (id, run = {}) => {
       let raw;
       try {
-        raw = await postJson('/api/process-recording', { id });
+        raw = await postJson('/api/process-recording', {
+          id, ...(typeof run.queueWaitS === 'number' ? { queue_wait_s: run.queueWaitS } : {}),
+        });
       } catch (err) {
         throw classifyProcessError(err);
       }

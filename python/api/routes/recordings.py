@@ -230,6 +230,14 @@ def _set_metadata(rec_id: str, **fields) -> None:
     db.update_recording_data(rec["id"], "metadata", metadata)
 
 
+@route("POST", '/api/call-state')
+def post_api_call_state(req, path: str, body: dict) -> None:
+    """Electron main: a Call became live or ended (run_meter: processing_finished.call_live)."""
+    import run_meter
+    run_meter.set_call_live(bool(body.get("live")))
+    return req.send_json({"ok": True})
+
+
 @route("POST", '/api/recording/capture-notice')
 def post_api_recording_capture_notice(req, path: str, body: dict) -> None:
     """Electron, at stop: a Call recorded with no Participants while
@@ -325,10 +333,14 @@ def _process_recording(req, path: str, body: dict) -> None:
     is_local = not wants_cloud
     if is_local:
         import local_meeting_pipeline
+        # From the Electron Processing queue: seconds the job waited and
+        # whether a Call was live when it started (processing_finished only).
+        run_info = {k: body[k] for k in ("queue_wait_s", "call_live") if isinstance(body.get(k), (int, float, bool))}
+        extra = {"run_info": run_info} if run_info else {}
         if 'processing' in body:
-            res = local_meeting_pipeline.process_recording_local(folder, options=body['processing'])
+            res = local_meeting_pipeline.process_recording_local(folder, options=body['processing'], **extra)
         else:
-            res = local_meeting_pipeline.process_recording_local(folder)
+            res = local_meeting_pipeline.process_recording_local(folder, **extra)
         # A merged Continuation is deleted; recording_id names the Recording
         # (its parent) that now holds the result.
         return req.send_json({

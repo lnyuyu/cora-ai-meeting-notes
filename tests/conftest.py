@@ -11,6 +11,9 @@ os.environ.pop("VOICECOACH_ENTERPRISE_LOCKDOWN", None)
 # No background audio pruning against other suites' fixture Recordings;
 # tests/test_audio_pruning.py turns it back on where it needs it.
 os.environ["CORA_AUDIO_PRUNING_DISABLED"] = "1"
+# No system probes (vm_stat, pmset, ...) every 2 s during pipeline tests;
+# tests/test_run_meter.py drives the sampler with fake probes.
+os.environ["CORA_RUN_METER_SAMPLING"] = "0"
 os.environ.pop("LANGFUSE_PUBLIC_KEY", None)
 os.environ.pop("LANGFUSE_SECRET_KEY", None)
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "python"))

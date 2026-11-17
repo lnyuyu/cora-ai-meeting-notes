@@ -318,3 +318,22 @@ test('the queue waits while capturing or quitting; under 16 GB also while a Call
   assert.equal(shouldDeferProcessing({ phase: 'idle', totalMemBytes: 16 * GB, callLive: true }), false);
   assert.equal(shouldDeferProcessing({ phase: 'paused', totalMemBytes: 32 * GB, callLive: true }), false);
 });
+
+test('processing is told how long the Recording waited in the queue, held for a Call included', async () => {
+  const { queue, api, clock } = setup();
+  queue.setDeferred(true);
+  queue.enqueue('meeting_a');
+  await clock.advance(90000);
+  queue.setDeferred(false);
+  await flush();
+  assert.deepEqual(api.runs, [['meeting_a', { queueWaitS: 90 }]]);
+});
+
+test('the backend adapter sends queue_wait_s with the process request', async () => {
+  const posted = [];
+  const backend = createBackendApi({ postJson: async (p, body) => { posted.push([p, body]); return '{}'; }, fetchJson: async () => '{}' });
+  await backend.processRecording('meeting_a', { queueWaitS: 12.5 });
+  await backend.processRecording('meeting_b');
+  assert.deepEqual(posted, [['/api/process-recording', { id: 'meeting_a', queue_wait_s: 12.5 }],
+    ['/api/process-recording', { id: 'meeting_b' }]]);
+});

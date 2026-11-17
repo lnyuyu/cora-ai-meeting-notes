@@ -77,8 +77,10 @@ function fakeApi() {
     // Payloads of every Usage event of that name, in emission order.
     events: (name) => calls.filter((c) => c[0] === 'recordEvent' && c[1] === name).map((c) => c[2]),
     processResults: [],
-    async processRecording(id) {
+    runs: [], // [id, { queueWaitS }] per processRecording call
+    async processRecording(id, run) {
       calls.push(['processRecording', id]);
+      if (run) api.runs.push([id, run]);
       const next = api.processResults.shift();
       if (next instanceof Error) throw next;
       return next || { ok: true };

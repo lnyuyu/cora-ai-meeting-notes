@@ -788,7 +788,11 @@ const callDetection = createCallDetection({
   isCapturing,
   prompt: { show: showCallPrompt, hide: hideCallPrompt },
   onFallback: detectHint.onFallback,
-  onCallLive: (live) => { callLive = live; updateProcessingDeferral(); },
+  onCallLive: (live) => {
+    callLive = live;
+    updateProcessingDeferral();
+    backendApi.setCallState(live).catch((err) => console.warn('[Cora usage] call state not sent:', err && err.message));
+  },
 });
 
 handleTrusted('call-prompt-action', (_event, action) => callDetection.promptAction(action));

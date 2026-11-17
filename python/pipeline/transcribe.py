@@ -55,6 +55,7 @@ def transcribe_local_mlx(audio_path: Path, prompt: str = "") -> dict[str, Any]:
     decode_params = dict(language="en", condition_on_previous_text=False, temperature=(0.0, 0.2, 0.4),
                          compression_ratio_threshold=2.4, logprob_threshold=-1.0, no_speech_threshold=0.5,
                          word_timestamps=False)
+    _preload_whisper(model_id)
     audio_info = ai_trace.file_fingerprint(audio_path)
     with ai_trace.span("transcription", "whisper.local_pipeline", provider="mlx", model=model_id,
                        input={"audio": audio_info, "initial_prompt": prompt}, params=decode_params,
@@ -68,6 +69,25 @@ def transcribe_local_mlx(audio_path: Path, prompt: str = "") -> dict[str, Any]:
     if "text" in result:
         result["text"] = collapse_repetition_loops(result["text"])
     return result
+
+
+def _preload_whisper(model_id: str) -> None:
+    """Load the Whisper model under a model_load span (processing_finished
+    model_load_s), the same way mlx_whisper.transcribe would: its ModelHolder
+    keeps it, so the transcription itself does not load again. Skipped when it
+    is already loaded; a failure here only means transcribe loads it itself."""
+    try:
+        import mlx.core as mx
+        from mlx_whisper.transcribe import ModelHolder
+    except Exception:
+        return
+    if ModelHolder.model is not None and ModelHolder.model_path == model_id:
+        return
+    try:
+        with ai_trace.span("model_load", "whisper.load", provider="mlx", model=model_id):
+            ModelHolder.get_model(model_id, mx.float16)
+    except Exception as exc:
+        print(f"[Local MLX] Whisper preload failed, transcribe will load it: {exc}", flush=True)
 
 
 def _whisper_trace_output(result: dict[str, Any]) -> dict[str, Any]:

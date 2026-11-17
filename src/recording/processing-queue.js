@@ -11,6 +11,8 @@
 //                                    no job step starts (GPU contention); a step
 //                                    already running finishes
 //   'job' event: { id, state, attempts, error?, code?, recording? } on every change
+//   api.processRecording(id, { queueWaitS }): seconds from enqueue to this
+//   processing attempt (archive and any deferral included), for telemetry
 //
 // A job is two steps: archive (the voice memo pipeline, targeted at this
 // recording id; resolves to the child's exit code) then processing
@@ -125,7 +127,7 @@ function createProcessingQueue({ archive, api, clock, retryDelaysMs = [5000, 300
         set(job, 'processing');
         let result;
         try {
-          result = await api.processRecording(job.id);
+          result = await api.processRecording(job.id, { queueWaitS: Math.round((clock.now() - job.enqueuedAt) / 100) / 10 });
         } catch (err) {
           const e = err || {};
           const code = typeof e.code === 'string' && PROCESS_MESSAGES[e.code] ? e.code : 'internal';
@@ -169,7 +171,7 @@ function createProcessingQueue({ archive, api, clock, retryDelaysMs = [5000, 300
     const existing = jobs.get(id);
     if (existing && existing.state !== 'done' && existing.state !== 'failed') return;
     jobs.delete(id);
-    const job = { id, state: 'queued', step: 'archive', attempts: 0, error: null, code: null, recording: null };
+    const job = { id, state: 'queued', step: 'archive', attempts: 0, error: null, code: null, recording: null, enqueuedAt: clock.now() };
     jobs.set(id, job);
     publish(job);
     pump();

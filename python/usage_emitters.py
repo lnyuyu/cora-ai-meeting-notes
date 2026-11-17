@@ -31,7 +31,8 @@ def processing_finished(recording_id: str, profile: dict[str, Any], *, run_id: O
                         started: float, resource: Optional[dict[str, Any]] = None,
                         window_fallbacks: Optional[int] = None, error_code: Optional[str] = None,
                         transcriber_model: Optional[str] = None,
-                        validation: Optional[dict[str, int]] = None, template: Optional[str] = None) -> None:
+                        validation: Optional[dict[str, int]] = None, template: Optional[str] = None,
+                        perf: Optional[dict[str, Any]] = None) -> None:
     """Record one processing_finished for a run that just ended.
 
     Providers are the Processing profile's choices (the preset names the
@@ -46,7 +47,11 @@ def processing_finished(recording_id: str, profile: dict[str, Any], *, run_id: O
     cloud transcript check fired (pipeline/asr_validate.py RULES, one per
     rejected attempt) and how many turns were clamped to their Window, as
     asr_<rule> counts; None (all asr_* null) for an engine that validates
-    nothing or a run that failed before transcribing."""
+    nothing or a run that failed before transcribing. perf: the run meter's
+    flat payload (python/run_meter.py: CPU seconds, per-stage seconds, queue
+    wait, system memory/swap/pressure/thermal/battery, Call live).
+    model_load_s sums the run's model_load spans: 0.0 for a run with a local
+    engine whose models were already loaded, null for an all-cloud run."""
     try:
         run = ai_trace.run_summary(run_id) or {}
         spans = run.get("spans") or []
@@ -77,9 +82,25 @@ def processing_finished(recording_id: str, profile: dict[str, Any], *, run_id: O
             "peak_rss_mb": resource.get("peak_memory_mb") or run.get("peak_rss_mb"),
             "duration_s": resource.get("audio_duration_seconds"),
             **_asr_counts(validation),
+            "model_load_s": _model_load_s(spans, profile),
+            **_perf(perf),
         })
     except Exception as exc:  # never let telemetry break processing
         _warn("processing_finished", exc)
+
+
+def _model_load_s(spans: list[dict[str, Any]], profile: dict[str, Any]) -> Optional[float]:
+    loads = [s.get("duration_s") or 0.0 for s in spans if s["kind"] == "model_load"]
+    if loads:
+        return round(sum(loads), 1)
+    local = profile.get("transcription") == "local" or profile.get("provider") == "local_mlx"
+    return 0.0 if local else None
+
+
+def _perf(perf: Optional[dict[str, Any]]) -> dict[str, Any]:
+    import run_meter
+    perf = perf or {}
+    return {k: perf.get(k) for k in run_meter.KEYS}
 
 
 def _asr_counts(validation: Optional[dict[str, int]]) -> dict[str, Optional[int]]:
